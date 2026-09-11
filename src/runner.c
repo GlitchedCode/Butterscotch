@@ -2625,9 +2625,11 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
 
-    // Any selfVars that still hold the destroyed instance's id must be invalidated back to
-    // noone (-4) before the instance is fully reclaimed.
-    Runner_clearStaleInstanceReferencesToInstance(runner, inst);
+    // NOTE: We intentionally do NOT call Runner_clearStaleInstanceReferencesToInstance here.
+    // In real GameMaker, references to destroyed instances keep their stale ID value.
+    // Games use instance_exists() to check if a reference is still valid, and comparing
+    // against noone (-4) or using the stale ID as a state marker.
+    // Clearing references to -4 breaks state machines that track text boxes, cutscenes, etc.
 
 #ifdef ENABLE_VM_TRACING
     GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
