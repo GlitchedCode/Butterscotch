@@ -10,4 +10,6 @@ compat/config.mk
 # Android build artifacts
 src/android/frontend/.gradle/
 src/android/frontend/app/.cxx/
+src/android/frontend/app/build/
 src/android/frontend/local.properties
+src/android/frontend/build/
