@@ -1432,6 +1432,9 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
                     Runner* runner = (Runner*) ctx->runner;
                     int32_t snapBase = Runner_pushInstancesOfObject(runner, instanceType);
                     int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
+                    if (snapBase == snapEnd && arrayIndex <= 11) {
+                        logWarn("VM: [%s] ALARM WRITE '%s[%d]=%d' on objIdx=%d but NO instances! varRef=0x%08X varType=0x%X\n", ctx->currentCodeName, varDef->name, arrayIndex, RValue_toInt32(val), instanceType, varRef, varType);
+                    }
                     for (int32_t i = snapBase; snapEnd > i; i++) {
                         Instance* inst = runner->instanceSnapshots[i];
                         if (!inst->active)
@@ -3608,6 +3611,20 @@ VMContext* VM_create(DataWin* dataWin) {
             shput(ctx->codeIndexByName, (char*) codeName, (int32_t) i);
         }
     }
+    }
+
+    // In GMS 2.3+, script_execute("foo") should resolve to gml_Script_foo (the function body),
+    // NOT gml_GlobalScript_foo (the wrapper that defines the method). The SCPT pass above maps
+    // "foo" -> gml_GlobalScript_foo's codeId. Fix by overwriting with gml_Script_foo's codeId.
+    repeat(dataWin->code.count, i) {
+        const char* codeName = dataWin->code.entries[i].name;
+        if (strncmp(codeName, "gml_Script_", 11) == 0) {
+            const char* bareName = codeName + 11;
+            ptrdiff_t existing = shgeti(ctx->codeIndexByName, (char*) bareName);
+            if (existing >= 0 && ctx->codeIndexByName[existing].value != (int32_t) i) {
+                ctx->codeIndexByName[existing].value = (int32_t) i;
+            }
+        }
     }
 
     // Build codeName -> CodeLocals* hash map
