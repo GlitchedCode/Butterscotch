@@ -151,6 +151,10 @@ static char* overlayReadFileText(FileSystem* fs, const char* relativePath) {
 
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
+    if (size < 0 || size > 100 * 1024 * 1024) {
+        fclose(f);
+        return nullptr;
+    }
     fseek(f, 0, SEEK_SET);
 
     char* content = (char *)safeMalloc((size_t) size + 1);
