@@ -28,6 +28,7 @@
 #endif
 
 #include "runner_keyboard.h"
+#include "ini.h"
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
@@ -1401,6 +1402,25 @@ int loop(CommandLineArgs args, const char *argv0) {
         runner->pendingLaunchParameters = nullptr;
 
         // Cleanup
+        // Try to save settings before exiting, regardless of how we're exiting
+        {
+            ptrdiff_t saveIdx = shgeti(vm->codeIndexByName, "gml_Script_scr_savesettings");
+            if (saveIdx < 0) saveIdx = shgeti(vm->codeIndexByName, "scr_savesettings");
+            if (saveIdx >= 0) {
+                int32_t saveCodeId = vm->codeIndexByName[saveIdx].value;
+                if (saveCodeId >= 0 && (uint32_t) saveCodeId < dataWin->code.count) {
+                    VM_callCodeIndex(vm, saveCodeId, nullptr, 0);
+                }
+            }
+            // Also flush any open INI
+            if (runner->currentIni != nullptr && runner->currentIniDirty && runner->currentIniPath != nullptr) {
+                char* serialized = Ini_serialize(runner->currentIni, 256);
+                FileSystem* fs = runner->fileSystem;
+                if (fs != nullptr) fs->vtable->writeFileText(fs, runner->currentIniPath, serialized);
+                free(serialized);
+            }
+        }
+
         runner->audioSystem->vtable->destroy(runner->audioSystem);
         runner->audioSystem = nullptr;
         renderer->vtable->destroy(renderer);
