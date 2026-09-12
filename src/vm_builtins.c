@@ -2270,14 +2270,15 @@ static RValue builtin_string_lower(MAYBE_UNUSED VMContext* ctx, RValue* args, in
 }
 
 static RValue builtin_string_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("string_copy", 3, RValue_makeOwnedString(safeStrdup("")));
-    int32_t len = RValue_toInt32(args[2]);
-    if (0 >= len) {
-        return RValue_makeOwnedString(safeStrdup(""));
-    }
+    REQUIRE_ARGC_AT_LEAST("string_copy", 2, RValue_makeOwnedString(safeStrdup("")));
 
     char* str = RValue_toString(args[0], ctx->runner->dataWin);
     int32_t pos = RValue_toInt32(args[1]) - 1; // GMS is 1-based
+    int32_t len = (argCount >= 3) ? RValue_toInt32(args[2]) : (int32_t) strlen(str);
+    if (0 >= len) {
+        free(str);
+        return RValue_makeOwnedString(safeStrdup(""));
+    }
     int32_t strLen = (int32_t) strlen(str);
 
     if (0 > pos) pos = 0;
@@ -4336,39 +4337,60 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     } else
 #endif
     {
-        // Numeric script/function index
+        // Numeric script/function index - treat as SCPT index
         int32_t rawArg = RValue_toInt32(args[0]);
         codeId = -1;
 
+        // Fallback: treat as SCPT index
+        if (0 > rawArg || (uint32_t) rawArg >= ctx->dataWin->scpt.count) {
 #if IS_WAD17_OR_HIGHER_ENABLED
-        // In GMS 2.3+, "scriptName" in source code is compiled as a FUNC-table index (same as builtin_method). Resolve funcIdx -> codeIndex via codeIndexByName
-        if (DataWin_isVersionAtLeast(ctx->dataWin, 2, 3, 0, 0) && rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
-            const char* funcName = ctx->dataWin->func.functions[rawArg].name;
-            if (funcName != nullptr) {
-                ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
-                if (idx >= 0) {
-                    codeId = ctx->codeIndexByName[idx].value;
-                } else {
-                    // Not a user script - might be a builtin function reference
-                    ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
-                    if (bidx >= 0) {
-                        BuiltinFunc bf = ctx->builtinMap[bidx].value;
-                        RValue* scriptArgs = (argCount > 1) ? &args[1] : nullptr;
-                        return bf(ctx, scriptArgs, argCount - 1);
+            // Not a valid SCPT index - might be a FUNC index passed directly
+            if (DataWin_isVersionAtLeast(ctx->dataWin, 2, 3, 0, 0) && rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
+                const char* funcName = ctx->dataWin->func.functions[rawArg].name;
+                if (funcName != nullptr) {
+                    ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
+                    if (idx >= 0) {
+                        codeId = ctx->codeIndexByName[idx].value;
+                    } else {
+                        // Not a user script - might be a builtin function reference
+                        ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
+                        if (bidx >= 0) {
+                            BuiltinFunc bf = ctx->builtinMap[bidx].value;
+                            RValue* scriptArgs = (argCount > 1) ? &args[1] : nullptr;
+                            return bf(ctx, scriptArgs, argCount - 1);
+                        }
+                    }
+                }
+            }
+#endif
+            if (0 > codeId) {
+                logWarn("VM: script_execute - invalid script index %d\n", rawArg);
+                return RValue_makeUndefined();
+            }
+        } else {
+            codeId = ctx->dataWin->scpt.scripts[rawArg].codeId;
+            // In GMS 2.3+, SCPT entries point to the global script wrapper (gml_GlobalScript_foo).
+            // The actual function body is in a separate code entry (gml_Script_foo).
+            // Resolve the wrapper -> body mapping via codeIndexByName.
+            if (DataWin_isVersionAtLeast(ctx->dataWin, 2, 3, 0, 0) && codeId >= 0 && (uint32_t) codeId < ctx->dataWin->code.count) {
+                const char* codeName = ctx->dataWin->code.entries[codeId].name;
+                if (codeName != nullptr && strncmp(codeName, "gml_GlobalScript_", 17) == 0) {
+                    const char* bareName = codeName + 17;
+                    // Look up gml_Script_bareName
+                    char scriptName[256];
+                    snprintf(scriptName, sizeof(scriptName), "gml_Script_%s", bareName);
+                    ptrdiff_t idx = shgeti(ctx->codeIndexByName, scriptName);
+                    if (idx >= 0) {
+                        codeId = ctx->codeIndexByName[idx].value;
                     }
                 }
             }
         }
-#endif
+    }
 
-        // Fallback: treat as SCPT index (BC16 and earlier, or when FUNC lookup failed)
-        if (0 > codeId) {
-            if (0 > rawArg || (uint32_t) rawArg >= ctx->dataWin->scpt.count) {
-                logWarn("VM: script_execute - invalid script index %d\n", rawArg);
-                return RValue_makeUndefined();
-            }
-            codeId = ctx->dataWin->scpt.scripts[rawArg].codeId;
-        }
+    if (0 > codeId || ctx->dataWin->code.count <= (uint32_t) codeId) {
+        logWarn("VM: script_execute - invalid codeId %d\n", codeId);
+        return RValue_makeUndefined();
     }
 
     if (0 > codeId || ctx->dataWin->code.count <= (uint32_t) codeId) {
