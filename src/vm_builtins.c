@@ -5745,6 +5745,7 @@ static RValue builtin_ds_grid_write(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     }
     return dsStreamFinishToHexString(buf);
 }
+
 static RValue builtin_ds_grid_get_max(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     REQUIRE_ARGC_AT_MOST("ds_grid_get_max", 5, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
@@ -7035,6 +7036,52 @@ static RValue builtin_array_delete(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     return RValue_makeUndefined();
 }
 
+static RValue builtin_array_equals(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (args[0].type != RVALUE_ARRAY || args[1].type != RVALUE_ARRAY) return RValue_makeBool(false);
+    GMLArray* a = args[0].array;
+    GMLArray* b = args[1].array;
+    if (a == b) return RValue_makeBool(true);
+    if (a == nullptr || b == nullptr) return RValue_makeBool(false);
+    require(a->type == GML_MODERN_ARRAY && b->type == GML_MODERN_ARRAY);
+    int32_t lenA = a->modern.length;
+    int32_t lenB = b->modern.length;
+    if (lenA != lenB) return RValue_makeBool(false);
+    for (int32_t i = 0; i < lenA; i++) {
+        if (!dsPriorityValuesEqual(a->modern.data[i], b->modern.data[i])) return RValue_makeBool(false);
+    }
+    return RValue_makeBool(true);
+}
+
+// ===[ Audio Group Stubs ]===
+STUB_RETURN_UNDEFINED(audio_group_stop_all)
+STUB_RETURN_UNDEFINED(audio_group_set_gain)
+
+// ===[ Display/Input Stubs ]===
+STUB_RETURN_UNDEFINED(display_reset)
+STUB_RETURN_UNDEFINED(screen_save)
+STUB_RETURN_UNDEFINED(show_error)
+
+// ===[ Buffer Stubs ]===
+static RValue builtin_buffer_peek(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    logStubbedFunction(ctx, "buffer_peek");
+    return RValue_makeReal(0);
+}
+
+// ===[ Secure Map Stubs ]===
+STUB_RETURN_FALSE(ds_map_secure_save)
+STUB_RETURN_FALSE(ds_map_secure_load)
+
+// ===[ DS Grid Post ]===
+STUB_RETURN_UNDEFINED(ds_grid_set_post)
+
+// ===[ Steam Achievement Stubs ]===
+STUB_RETURN_FALSE(steam_get_achievement)
+STUB_RETURN_FALSE(steam_set_achievement)
+STUB_RETURN_FALSE(steam_clear_achievement)
+STUB_RETURN_FALSE(steam_is_screenshot_requested)
+STUB_RETURN_UNDEFINED(steam_send_screenshot)
+STUB_RETURN_UNDEFINED(steam_shutdown)
+
 // ===[ COLLISION FUNCTIONS]===
 
 static RValue builtin_place_free(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -7381,6 +7428,96 @@ STUB_RETURN_ZERO(steam_file_exists)
 STUB_RETURN_UNDEFINED(steam_file_write)
 STUB_RETURN_UNDEFINED(steam_file_read)
 STUB_RETURN_ZERO(steam_get_persona_name)
+STUB_RETURN_ZERO(steam_update)
+STUB_RETURN_FALSE(steam_utils_is_steam_running_on_steam_deck)
+
+// ===[ Date/Time Functions ]===
+
+static RValue builtin_date_current_datetime(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    time_t now = time(NULL);
+    double gmDate = 25569.0 + ((double) now / 86400.0);
+    return RValue_makeReal(gmDate);
+}
+
+static struct tm* gmDateToTm(double gmDate) {
+    double unixDays = gmDate - 25569.0;
+    time_t t = (time_t)(unixDays * 86400.0);
+    return localtime(&t);
+}
+
+static RValue builtin_date_get_year(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_get_year", 1, RValue_makeReal(0));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    return RValue_makeReal((GMLReal)(tm->tm_year + 1900));
+}
+
+static RValue builtin_date_get_month(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_get_month", 1, RValue_makeReal(0));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    return RValue_makeReal((GMLReal)(tm->tm_mon + 1));
+}
+
+static RValue builtin_date_get_day(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_get_day", 1, RValue_makeReal(0));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    return RValue_makeReal((GMLReal)tm->tm_mday);
+}
+
+static RValue builtin_date_get_hour(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_get_hour", 1, RValue_makeReal(0));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    return RValue_makeReal((GMLReal)tm->tm_hour);
+}
+
+static RValue builtin_date_get_minute(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_get_minute", 1, RValue_makeReal(0));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    return RValue_makeReal((GMLReal)tm->tm_min);
+}
+
+static RValue builtin_date_get_second(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_get_second", 1, RValue_makeReal(0));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    return RValue_makeReal((GMLReal)tm->tm_sec);
+}
+
+static RValue builtin_date_minute_span(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_minute_span", 2, RValue_makeReal(0));
+    double d1 = RValue_toReal(args[0]);
+    double d2 = RValue_toReal(args[1]);
+    double diffDays = d2 - d1;
+    return RValue_makeReal(diffDays * 1440.0); // 1440 minutes per day
+}
+
+static RValue builtin_date_second_span(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_second_span", 2, RValue_makeReal(0));
+    double d1 = RValue_toReal(args[0]);
+    double d2 = RValue_toReal(args[1]);
+    double diffDays = d2 - d1;
+    return RValue_makeReal(diffDays * 86400.0);
+}
+
+static RValue builtin_date_date_string(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_date_string", 1, RValue_makeOwnedString(safeStrdup("")));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    char buf[32];
+    strftime(buf, sizeof(buf), "%d/%m/%Y", tm);
+    return RValue_makeOwnedString(safeStrdup(buf));
+}
+
+static RValue builtin_date_time_string(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_time_string", 1, RValue_makeOwnedString(safeStrdup("")));
+    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
+    char buf[32];
+    strftime(buf, sizeof(buf), "%H:%M:%S", tm);
+    return RValue_makeOwnedString(safeStrdup(buf));
+}
+
+// ===[ Texture Functions ]===
+
+STUB_RETURN_UNDEFINED(texture_prefetch)
+STUB_RETURN_UNDEFINED(sprite_prefetch)
+STUB_RETURN_UNDEFINED(sprite_flush)
 
 // ===[ Audio Built-in Functions ]===
 
@@ -7972,6 +8109,7 @@ static RValue builtin_ini_open(VMContext* ctx, RValue* args, int32_t argCount) {
         runner->currentIni = Ini_parse(content);
         free(content);
     } else {
+        logWarn("ini_open: '%s' not found, creating empty INI\n", path);
         runner->currentIni = Ini_parse("");
     }
 
@@ -8017,17 +8155,15 @@ static RValue builtin_ini_close(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
     if (runner->currentIni == nullptr) {
         free(runner->currentIniPath);
         runner->currentIniPath = nullptr;
-        // No ini open = empty
         return RValue_makeOwnedString(safeStrdup(""));
     }
 
-    // Serialize the current contents.
     char* serialized = Ini_serialize(runner->currentIni, INI_SERIALIZE_DEFAULT_INITIAL_CAPACITY);
 
-    // Write back to disk only for file-backed INIs (ini_open).
     if (runner->currentIniDirty && runner->currentIniPath != nullptr) {
         FileSystem* fs = runner->fileSystem;
-        fs->vtable->writeFileText(fs, runner->currentIniPath, serialized);
+        bool ok = fs->vtable->writeFileText(fs, runner->currentIniPath, serialized);
+        if (!ok) logWarn("ini_close: writeFileText failed for '%s'\n", runner->currentIniPath);
     }
 
     // Move to cache instead of freeing
@@ -8123,6 +8259,22 @@ static RValue builtin_ini_section_exists(VMContext* ctx, RValue* args, int32_t a
 
     const char* section = (args[0].type == RVALUE_STRING ? args[0].string : "");
     return RValue_makeBool(Ini_hasSection(runner->currentIni, section));
+}
+
+static RValue builtin_ini_key_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    REQUIRE_ARGC_AT_LEAST("ini_key_exists", 1, RValue_makeBool(false));
+    if (runner->currentIni == nullptr) return RValue_makeBool(false);
+
+    const char* section = "";
+    const char* key;
+    if (argCount >= 2) {
+        section = (args[0].type == RVALUE_STRING ? args[0].string : "");
+        key = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    } else {
+        key = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    }
+    return RValue_makeBool(Ini_hasKey(runner->currentIni, section, key));
 }
 
 // ===[ Text File Functions ]===
@@ -8395,6 +8547,19 @@ static RValue builtin_file_delete(VMContext* ctx, RValue* args, int32_t argCount
     Runner* runner = ctx->runner;
     FileSystem* fs = runner->fileSystem;
     fs->vtable->deleteFile(fs, path);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_file_copy(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("file_copy", 2, RValue_makeUndefined());
+    const char* srcPath = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    const char* dstPath = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    Runner* runner = ctx->runner;
+    FileSystem* fs = runner->fileSystem;
+    char* content = fs->vtable->readFileText(fs, srcPath);
+    if (content == nullptr) return RValue_makeUndefined();
+    fs->vtable->writeFileText(fs, dstPath, content);
+    free(content);
     return RValue_makeUndefined();
 }
 
@@ -8947,6 +9112,26 @@ static RValue builtin_game_restart(VMContext* ctx, MAYBE_UNUSED RValue* args, MA
 
 static RValue builtin_game_end(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
+
+    // Try to call scr_savesettings before exiting.
+    // The game's end_game() calls game_end() directly, bypassing exit_game which normally saves.
+    ptrdiff_t idx = shgeti(ctx->codeIndexByName, "gml_Script_scr_savesettings");
+    if (idx < 0) idx = shgeti(ctx->codeIndexByName, "scr_savesettings");
+    if (idx >= 0) {
+        int32_t saveCodeId = ctx->codeIndexByName[idx].value;
+        if (saveCodeId >= 0 && (uint32_t) saveCodeId < runner->dataWin->code.count) {
+            VM_callCodeIndex(ctx, saveCodeId, nullptr, 0);
+        }
+    }
+
+    // Also save any open INI file
+    if (runner->currentIni != nullptr && runner->currentIniDirty && runner->currentIniPath != nullptr) {
+        char* serialized = Ini_serialize(runner->currentIni, INI_SERIALIZE_DEFAULT_INITIAL_CAPACITY);
+        FileSystem* fs = runner->fileSystem;
+        fs->vtable->writeFileText(fs, runner->currentIniPath, serialized);
+        free(serialized);
+    }
+
     runner->shouldExit = true;
     return RValue_makeUndefined();
 }
@@ -9424,6 +9609,25 @@ static RValue builtin_event_perform(VMContext* ctx, RValue* args, int32_t argCou
     int32_t eventSubtype = RValue_toInt32(args[1]);
 
     Runner_executeEvent(runner, inst, eventType, eventSubtype);
+    return RValue_makeReal(0.0);
+}
+
+static RValue builtin_event_perform_object(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("event_perform_object", 3, RValue_makeReal(0.0));
+    Runner* runner = ctx->runner;
+    int32_t objectId = RValue_toInt32(args[0]);
+    int32_t eventType = RValue_toInt32(args[1]);
+    int32_t eventSubtype = RValue_toInt32(args[2]);
+
+    if (objectId < 0 || (uint32_t) objectId >= runner->dataWin->objt.count) return RValue_makeReal(0.0);
+
+    int32_t count = (int32_t) arrlen(runner->instances);
+    for (int32_t i = 0; i < count; i++) {
+        Instance* inst = runner->instances[i];
+        if (inst != nullptr && inst->objectIndex == objectId && !inst->destroyed) {
+            Runner_executeEvent(runner, inst, eventType, eventSubtype);
+        }
+    }
     return RValue_makeReal(0.0);
 }
 
@@ -12556,6 +12760,11 @@ static RValue builtin_color_get_value(MAYBE_UNUSED VMContext* ctx, RValue* args,
 STUB_RETURN_VALUE(display_get_width, 640.0)
 STUB_RETURN_VALUE(display_get_height, 480.0)
 
+// Window stubs
+STUB_RETURN_ZERO(window_get_x)
+STUB_RETURN_ZERO(window_get_y)
+STUB_RETURN_UNDEFINED(window_set_position)
+
 static int32_t resolveGuiWidth(Runner* runner) {
     if (runner->guiWidth > 0) return runner->guiWidth;
     Room* room = runner->currentRoom;
@@ -12592,6 +12801,18 @@ static RValue builtin_display_get_gui_width(MAYBE_UNUSED VMContext* ctx, MAYBE_U
 static RValue builtin_display_get_gui_height(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     return RValue_makeInt32(resolveGuiHeight(runner));
+}
+
+static RValue builtin_display_mouse_get_x(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t guiWidth = resolveGuiWidth(runner);
+    return RValue_makeReal(runner->mouse->normalizedX * guiWidth);
+}
+
+static RValue builtin_display_mouse_get_y(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t guiHeight = resolveGuiHeight(runner);
+    return RValue_makeReal(runner->mouse->normalizedY * guiHeight);
 }
 
 static RValue builtinDeviceMouseX(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -21833,6 +22054,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_resize", builtin_array_resize);
     VM_registerBuiltin(ctx, "array_delete", builtin_array_delete);
     VM_registerBuiltin(ctx, "array_insert", builtin_array_insert);
+    VM_registerBuiltin(ctx, "array_equals", builtin_array_equals);
     VM_registerBuiltin(ctx, "array_create", builtin_array_create);
 
     // Steam stubs
@@ -21842,6 +22064,26 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "steam_file_write", builtin_steam_file_write);
     VM_registerBuiltin(ctx, "steam_file_read", builtin_steam_file_read);
     VM_registerBuiltin(ctx, "steam_get_persona_name", builtin_steam_get_persona_name);
+    VM_registerBuiltin(ctx, "steam_update", builtin_steam_update);
+    VM_registerBuiltin(ctx, "steam_utils_is_steam_running_on_steam_deck", builtin_steam_utils_is_steam_running_on_steam_deck);
+
+    // Date/Time
+    VM_registerBuiltin(ctx, "date_current_datetime", builtin_date_current_datetime);
+    VM_registerBuiltin(ctx, "date_get_year", builtin_date_get_year);
+    VM_registerBuiltin(ctx, "date_get_month", builtin_date_get_month);
+    VM_registerBuiltin(ctx, "date_get_day", builtin_date_get_day);
+    VM_registerBuiltin(ctx, "date_get_hour", builtin_date_get_hour);
+    VM_registerBuiltin(ctx, "date_get_minute", builtin_date_get_minute);
+    VM_registerBuiltin(ctx, "date_get_second", builtin_date_get_second);
+    VM_registerBuiltin(ctx, "date_minute_span", builtin_date_minute_span);
+    VM_registerBuiltin(ctx, "date_second_span", builtin_date_second_span);
+    VM_registerBuiltin(ctx, "date_date_string", builtin_date_date_string);
+    VM_registerBuiltin(ctx, "date_time_string", builtin_date_time_string);
+
+    // Texture
+    VM_registerBuiltin(ctx, "texture_prefetch", builtin_texture_prefetch);
+    VM_registerBuiltin(ctx, "sprite_prefetch", builtin_sprite_prefetch);
+    VM_registerBuiltin(ctx, "sprite_flush", builtin_sprite_flush);
 
     // Audio
     VM_registerBuiltin(ctx, "audio_system_is_available", builtin_audio_system_is_available);
@@ -21923,6 +22165,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ini_read_string", builtin_ini_read_string);
     VM_registerBuiltin(ctx, "ini_read_real", builtin_ini_read_real);
     VM_registerBuiltin(ctx, "ini_section_exists", builtin_ini_section_exists);
+    VM_registerBuiltin(ctx, "ini_key_exists", builtin_ini_key_exists);
 
     // Directory
     VM_registerBuiltin(ctx, "directory_exists", builtin_directory_exists);
@@ -21939,6 +22182,36 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "file_text_write_real", builtin_file_text_write_real);
     VM_registerBuiltin(ctx, "file_text_eof", builtin_file_text_eof);
     VM_registerBuiltin(ctx, "file_delete", builtin_file_delete);
+    VM_registerBuiltin(ctx, "file_copy", builtin_file_copy);
+
+    // Audio group stubs
+    VM_registerBuiltin(ctx, "audio_group_stop_all", builtin_audio_group_stop_all);
+    VM_registerBuiltin(ctx, "audio_group_set_gain", builtin_audio_group_set_gain);
+
+    // Display stubs
+    VM_registerBuiltin(ctx, "display_reset", builtin_display_reset);
+    VM_registerBuiltin(ctx, "screen_save", builtin_screen_save);
+
+    // Buffer stubs
+    VM_registerBuiltin(ctx, "buffer_peek", builtin_buffer_peek);
+
+    // Secure map stubs
+    VM_registerBuiltin(ctx, "ds_map_secure_save", builtin_ds_map_secure_save);
+    VM_registerBuiltin(ctx, "ds_map_secure_load", builtin_ds_map_secure_load);
+
+    // DS grid post stub
+    VM_registerBuiltin(ctx, "ds_grid_set_post", builtin_ds_grid_set_post);
+
+    // Show error stub
+    VM_registerBuiltin(ctx, "show_error", builtin_show_error);
+
+    // Steam achievement stubs
+    VM_registerBuiltin(ctx, "steam_get_achievement", builtin_steam_get_achievement);
+    VM_registerBuiltin(ctx, "steam_set_achievement", builtin_steam_set_achievement);
+    VM_registerBuiltin(ctx, "steam_clear_achievement", builtin_steam_clear_achievement);
+    VM_registerBuiltin(ctx, "steam_is_screenshot_requested", builtin_steam_is_screenshot_requested);
+    VM_registerBuiltin(ctx, "steam_send_screenshot", builtin_steam_send_screenshot);
+    VM_registerBuiltin(ctx, "steam_shutdown", builtin_steam_shutdown);
     VM_registerBuiltin(ctx, "file_find_first", builtin_file_find_first);
     VM_registerBuiltin(ctx, "file_find_next", builtin_file_find_next);
     VM_registerBuiltin(ctx, "file_find_close", builtin_file_find_close);
@@ -22000,6 +22273,13 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "window_has_focus", builtin_window_has_focus);
     VM_registerBuiltin(ctx, "window_set_cursor", builtin_window_set_cursor);
     VM_registerBuiltin(ctx, "window_get_cursor", builtin_window_get_cursor);
+    VM_registerBuiltin(ctx, "window_get_x", builtin_window_get_x);
+    VM_registerBuiltin(ctx, "window_get_y", builtin_window_get_y);
+    VM_registerBuiltin(ctx, "window_set_position", builtin_window_set_position);
+
+    // Display mouse
+    VM_registerBuiltin(ctx, "display_mouse_get_x", builtin_display_mouse_get_x);
+    VM_registerBuiltin(ctx, "display_mouse_get_y", builtin_display_mouse_get_y);
 
     // Game
     VM_registerBuiltin(ctx, "game_restart", builtin_game_restart);
@@ -22058,6 +22338,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "event_inherited", builtin_event_inherited);
     VM_registerBuiltin(ctx, "event_user", builtin_event_user);
     VM_registerBuiltin(ctx, "event_perform", builtin_event_perform);
+    VM_registerBuiltin(ctx, "event_perform_object", builtin_event_perform_object);
 
     // Buffer
     VM_registerBuiltin(ctx, "buffer_create", builtin_buffer_create);
