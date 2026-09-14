@@ -38,6 +38,7 @@ typedef struct RunnerMouseState {
     // Cursor cached in app-surface (FBO) pixel space
     double screenX, screenY;
     double normalizedX, normalizedY;
+    double windowX, windowY; // Raw window-space cursor position
     bool buttonDown[GML_MOUSE_BUTTON_COUNT];
     bool buttonPressed[GML_MOUSE_BUTTON_COUNT];
     bool buttonReleased[GML_MOUSE_BUTTON_COUNT];
