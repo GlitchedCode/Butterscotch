@@ -7602,6 +7602,7 @@ STUB_RETURN_UNDEFINED(steam_file_read)
 STUB_RETURN_ZERO(steam_get_persona_name)
 STUB_RETURN_ZERO(steam_update)
 STUB_RETURN_FALSE(steam_utils_is_steam_running_on_steam_deck)
+STUB_RETURN_UNDEFINED(audio_falloff_set_model)
 
 // ===[ Date/Time Functions ]===
 
@@ -7831,6 +7832,21 @@ static RValue builtin_audio_play_sound(VMContext* ctx, RValue* args, MAYBE_UNUSE
     int32_t soundIndex = RValue_toInt32(args[0]);
     int32_t priority = RValue_toInt32(args[1]);
     bool loop = RValue_toBool(args[2]);
+    int32_t instanceId = audio->vtable->playSound(audio, soundIndex, priority, loop);
+    return RValue_makeReal((GMLReal) instanceId);
+}
+
+// audio_play_sound_at(index, x, y, z, falloff_ref, falloff_max, falloff_factor, loop, priority)
+static RValue builtin_audio_play_sound_at(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio == nullptr) return RValue_makeReal(-1.0);
+
+    if (args[0].type == RVALUE_UNDEFINED)
+        return RValue_makeReal(-1.0);
+
+    int32_t soundIndex = RValue_toInt32(args[0]);
+    bool loop = RValue_toBool(args[7]);
+    int32_t priority = RValue_toInt32(args[8]);
     int32_t instanceId = audio->vtable->playSound(audio, soundIndex, priority, loop);
     return RValue_makeReal((GMLReal) instanceId);
 }
@@ -22387,6 +22403,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_get_name", builtin_audio_get_name);
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
+    VM_registerBuiltin(ctx, "audio_play_sound_at", builtin_audio_play_sound_at);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
     VM_registerBuiltin(ctx, "audio_stop_all", builtin_audio_stop_all);
     VM_registerBuiltin(ctx, "audio_is_playing", builtin_audio_is_playing);
@@ -22414,6 +22431,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_sound_set_track_position", builtin_audio_sound_set_track_position);
     VM_registerBuiltin(ctx, "audio_create_stream", builtin_audio_create_stream);
     VM_registerBuiltin(ctx, "audio_destroy_stream", builtin_audio_destroy_stream);
+    VM_registerBuiltin(ctx, "audio_falloff_set_model", builtin_audio_falloff_set_model);
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_sound", builtin_action_sound);
         VM_registerBuiltin(ctx, "action_end_sound", builtin_audio_stop_sound);
