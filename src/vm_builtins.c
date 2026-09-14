@@ -9893,6 +9893,34 @@ static RValue builtin_action_create_object(VMContext* ctx, RValue* args, int32_t
     return RValue_makeUndefined();
 }
 
+// action_create_object_motion(object, x, y, direction, speed)
+static RValue builtin_action_create_object_motion(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("action_create_object_motion", 5, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t objectIndex = RValue_toInt32(args[0]);
+    GMLReal x = RValue_toReal(args[1]);
+    GMLReal y = RValue_toReal(args[2]);
+    GMLReal dir = RValue_toReal(args[3]);
+    GMLReal spd = RValue_toReal(args[4]);
+    if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
+        logWarn("VM: action_create_object_motion: objectIndex %d out of range\n", objectIndex);
+        return RValue_makeUndefined();
+    }
+    Instance* callerInst = ctx->currentInstance;
+    if (ctx->actionRelativeFlag && callerInst != nullptr) {
+        x += callerInst->x;
+        y += callerInst->y;
+    }
+    Instance* inst = Runner_createInstance(runner, x, y, objectIndex);
+    if (callerInst != nullptr && ctx->creatorVarID >= 0) {
+        Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
+    }
+    inst->direction = (float) dir;
+    inst->speed = (float) spd;
+    Instance_computeComponentsFromSpeed(inst);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_action_set_relative(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     ctx->actionRelativeFlag = RValue_toInt32(args[0]) != 0;
     return RValue_makeUndefined();
@@ -12339,6 +12367,19 @@ static RValue builtin_motion_add(VMContext* ctx, RValue* args, int32_t argCount)
     inst->hspeed += (float)(GMLReal_cos(rad) * spd);
     inst->vspeed += (float)(-GMLReal_sin(rad) * spd);
     Instance_computeSpeedFromComponents(inst);
+
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_motion_set(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("motion_set", 2, RValue_makeUndefined());
+
+    Instance* inst = ctx->currentInstance;
+    if (inst == nullptr) return RValue_makeUndefined();
+
+    inst->direction = (float) RValue_toReal(args[0]);
+    inst->speed = (float) RValue_toReal(args[1]);
+    Instance_computeComponentsFromSpeed(inst);
 
     return RValue_makeUndefined();
 }
@@ -18857,6 +18898,105 @@ static RValue builtin_font_add_sprite_ext(VMContext* ctx, RValue* args, int32_t 
     return fontAddSpriteImpl(ctx, spriteIndex, charCodes, charCount, proportional, sep);
 }
 
+// font_replace_sprite(ind, spr, first, prop, sep)
+static RValue builtin_font_replace_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("font_replace_sprite", 5, RValue_makeUndefined());
+
+    DataWin* dw = ctx->dataWin;
+    int32_t fontIndex = RValue_toInt32(args[0]);
+    int32_t spriteIndex = RValue_toInt32(args[1]);
+    int32_t first = RValue_toInt32(args[2]);
+    bool proportional = RValue_toBool(args[3]);
+    int32_t sep = RValue_toInt32(args[4]);
+
+    if (0 > fontIndex || (uint32_t) fontIndex >= dw->font.count) return RValue_makeUndefined();
+    if (0 > spriteIndex || (uint32_t) spriteIndex >= dw->sprt.count) return RValue_makeUndefined();
+
+    Sprite* sprite = &dw->sprt.sprites[spriteIndex];
+    if (sprite->textureCount == 0) return RValue_makeUndefined();
+
+    uint32_t glyphCount = sprite->textureCount;
+    if (glyphCount > 1024) glyphCount = 1024;
+
+    bool spriteFontSubtractsOrigin = DataWin_isVersionAtLeast(dw, 2023, 4, 0, 0);
+
+    uint32_t maxHeight = 0;
+    int32_t biggestShift = 0;
+    repeat(glyphCount, i) {
+        int32_t tpagIdx = sprite->tpagIndices[i];
+        if (0 > tpagIdx) continue;
+        TexturePageItem* tpag = &dw->tpag.items[tpagIdx];
+        if (tpag->boundingHeight > maxHeight) maxHeight = tpag->boundingHeight;
+        int32_t width = proportional ? (int32_t) tpag->sourceWidth : (int32_t) tpag->boundingWidth;
+        if (width > biggestShift) biggestShift = width;
+    }
+
+    bool hasSpace = false;
+    repeat(glyphCount, i) {
+        if ((uint16_t)(first + i) == 0x20) { hasSpace = true; break; }
+    }
+
+    uint32_t totalGlyphs = hasSpace ? glyphCount : glyphCount + 1;
+    FontGlyph* glyphs = (FontGlyph *)safeMalloc(totalGlyphs * sizeof(FontGlyph));
+
+    repeat(glyphCount, i) {
+        int32_t tpagIdx = sprite->tpagIndices[i];
+        FontGlyph* glyph = &glyphs[i];
+        glyph->character = (uint16_t)(first + i);
+        glyph->kerningCount = 0;
+        glyph->kerning = nullptr;
+
+        if (0 > tpagIdx) {
+            glyph->sourceX = 0;
+            glyph->sourceY = 0;
+            glyph->sourceWidth = 0;
+            glyph->sourceHeight = 0;
+            glyph->shift = (int16_t) sep;
+            glyph->offset = 0;
+            continue;
+        }
+
+        TexturePageItem* tpag = &dw->tpag.items[tpagIdx];
+        glyph->sourceX = 0;
+        glyph->sourceY = 0;
+        glyph->sourceWidth = tpag->sourceWidth;
+        glyph->sourceHeight = tpag->sourceHeight;
+
+        int32_t advanceWidth = proportional ? (int32_t) tpag->sourceWidth : (int32_t) tpag->boundingWidth;
+        glyph->shift = (int16_t) (advanceWidth + sep);
+
+        int32_t xOff = (int32_t) tpag->targetX - (spriteFontSubtractsOrigin ? sprite->originX : 0);
+        glyph->offset = proportional ? 0 : (int16_t) xOff;
+    }
+
+    if (!hasSpace) {
+        FontGlyph* spaceGlyph = &glyphs[glyphCount];
+        spaceGlyph->character = 0x20;
+        spaceGlyph->sourceX = 0;
+        spaceGlyph->sourceY = 0;
+        spaceGlyph->sourceWidth = 0;
+        spaceGlyph->sourceHeight = 0;
+        spaceGlyph->shift = (int16_t) (biggestShift + sep);
+        spaceGlyph->offset = 0;
+        spaceGlyph->kerningCount = 0;
+        spaceGlyph->kerning = nullptr;
+    }
+
+    Font* font = &dw->font.fonts[fontIndex];
+    free(font->glyphs);
+    font->glyphs = glyphs;
+    font->glyphCount = totalGlyphs;
+    font->emSize = (float)((maxHeight > 0) ? maxHeight : sprite->height);
+    font->maxGlyphHeight = maxHeight;
+    font->isSpriteFont = true;
+    font->spriteIndex = spriteIndex;
+    font->spriteOriginYAdjust = spriteFontSubtractsOrigin ? (int16_t) sprite->originY : 0;
+    font->tpagIndex = -1;
+    Font_buildGlyphLUT(font);
+
+    return RValue_makeUndefined();
+}
+
 // font_add_sprite(sprite, first, prop, sep)
 static RValue builtin_font_add_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("font_add_sprite", 4, RValue_makeReal(-1.0));
@@ -22628,6 +22768,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_kill_object", builtin_action_kill_object);
         VM_registerBuiltin(ctx, "action_create_object", builtin_action_create_object);
+        VM_registerBuiltin(ctx, "action_create_object_motion", builtin_action_create_object_motion);
         VM_registerBuiltin(ctx, "action_set_relative", builtin_action_set_relative);
         VM_registerBuiltin(ctx, "action_move", builtin_action_move);
         VM_registerBuiltin(ctx, "action_move_to", builtin_action_move_to);
@@ -22798,6 +22939,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Motion
     VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
+    VM_registerBuiltin(ctx, "motion_set", builtin_motion_set);
 
     // Color
     VM_registerBuiltin(ctx, "merge_color", builtin_merge_color);
@@ -23274,6 +23416,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "json_encode", builtin_json_encode);
     VM_registerBuiltin(ctx, "font_add_sprite", builtin_font_add_sprite);
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtin_font_add_sprite_ext);
+    VM_registerBuiltin(ctx, "font_replace_sprite", builtin_font_replace_sprite);
     VM_registerBuiltin(ctx, "font_exists", builtin_font_exists);
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
     VM_registerBuiltin(ctx, "font_get_bold", builtin_font_get_bold);
