@@ -117,6 +117,23 @@ static bool platformGetWindowFocus(void) {
     return glfwGetWindowParam(GLFW_ACTIVE);
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY) return false;
+    int x = 0, y = 0;
+    glfwGetWindowPos(&x, &y);
+    *outX = x;
+    *outY = y;
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    glfwSetWindowPos(x, y);
+}
+
+bool platformIsFullscreen(void) {
+    return false;
+}
+
 static int32_t glfwKeyToGml(int glfwKey) {
     // Letters and numbers are the same as GML
     if (glfwKey >= 'A' && glfwKey <= 'Z') return glfwKey;

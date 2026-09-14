@@ -81,6 +81,21 @@ void platformGetMousePos(double *xPos, double *yPos) {
     if (yPos) *yPos = 0.0;
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (outX) *outX = 0;
+    if (outY) *outY = 0;
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    (void)x;
+    (void)y;
+}
+
+bool platformIsFullscreen(void) {
+    return false;
+}
+
 void platformSwapBuffers(void) {
     static uint32_t frames = 0;
     static time_t t = 0;

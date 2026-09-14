@@ -9017,6 +9017,17 @@ static RValue builtin_keyboard_clear(VMContext* ctx, RValue* args, int32_t argCo
     return RValue_makeUndefined();
 }
 
+static RValue builtin_io_clear(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    // Clear all keyboard state
+    RunnerKeyboard_beginFrame(runner->keyboard);
+    // Clear all mouse state
+    memset(runner->mouse->buttonDown, 0, sizeof(runner->mouse->buttonDown));
+    memset(runner->mouse->buttonPressed, 0, sizeof(runner->mouse->buttonPressed));
+    memset(runner->mouse->buttonReleased, 0, sizeof(runner->mouse->buttonReleased));
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_keyboard_set_map(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("keyboard_set_map", 2, RValue_makeUndefined());
     Runner* runner = ctx->runner;
@@ -9210,8 +9221,14 @@ static RValue builtin_joystick_axes(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     return RValue_makeReal(RunnerGamepad_getAxisCount(runner->gamepads, id));
 }
 
-// Window stubs
-STUB_RETURN_ZERO(window_get_fullscreen)
+// Window fullscreen
+static RValue builtin_window_get_fullscreen(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->isFullscreen != nullptr) {
+        return RValue_makeBool(runner->isFullscreen());
+    }
+    return RValue_makeBool(false);
+}
 STUB_RETURN_UNDEFINED(window_set_fullscreen)
 static RValue builtin_window_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -13020,6 +13037,7 @@ static RValue builtin_display_get_height(VMContext* ctx, MAYBE_UNUSED RValue* ar
 }
 
 // Window position functions
+// Window position
 static RValue builtin_window_get_x(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner != nullptr && runner->getWindowPosition != nullptr) {
@@ -13097,6 +13115,16 @@ static RValue builtin_display_mouse_get_y(MAYBE_UNUSED VMContext* ctx, MAYBE_UNU
     Runner* runner = ctx->runner;
     int32_t guiHeight = resolveGuiHeight(runner);
     return RValue_makeReal(runner->mouse->normalizedY * guiHeight);
+}
+
+static RValue builtin_window_mouse_get_x(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    return RValue_makeReal(runner->mouse->windowX);
+}
+
+static RValue builtin_window_mouse_get_y(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    return RValue_makeReal(runner->mouse->windowY);
 }
 
 static RValue builtinDeviceMouseX(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -22503,6 +22531,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "keyboard_key_press", builtin_keyboard_key_press);
     VM_registerBuiltin(ctx, "keyboard_key_release", builtin_keyboard_key_release);
     VM_registerBuiltin(ctx, "keyboard_clear", builtin_keyboard_clear);
+    VM_registerBuiltin(ctx, "io_clear", builtin_io_clear);
     VM_registerBuiltin(ctx, "keyboard_set_map", builtin_keyboard_set_map);
     VM_registerBuiltin(ctx, "keyboard_get_map", builtin_keyboard_get_map);
     VM_registerBuiltin(ctx, "keyboard_unset_map", builtin_keyboard_unset_map);
@@ -22548,6 +22577,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Display mouse
     VM_registerBuiltin(ctx, "display_mouse_get_x", builtin_display_mouse_get_x);
     VM_registerBuiltin(ctx, "display_mouse_get_y", builtin_display_mouse_get_y);
+    VM_registerBuiltin(ctx, "window_mouse_get_x", builtin_window_mouse_get_x);
+    VM_registerBuiltin(ctx, "window_mouse_get_y", builtin_window_mouse_get_y);
 
     // Game
     VM_registerBuiltin(ctx, "game_restart", builtin_game_restart);

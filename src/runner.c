@@ -3021,6 +3021,9 @@ static bool adaptPath(Runner* runner, Instance* inst) {
 void Runner_updateMousePosition(Runner* runner, int32_t windowWidth, int32_t windowHeight, double mouseXInWindow, double mouseYInWindow) {
     if (windowWidth <= 0 || windowHeight <= 0 || runner->currentRoom == nullptr) return;
 
+    runner->mouse->windowX = mouseXInWindow;
+    runner->mouse->windowY = mouseYInWindow;
+
     uint32_t gameW = runner->renderGameW > 0 ? runner->renderGameW : runner->currentRoom->width;
     uint32_t gameH = runner->renderGameH > 0 ? runner->renderGameH : runner->currentRoom->height;
 

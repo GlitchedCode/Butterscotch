@@ -155,6 +155,25 @@ static bool platformGetWindowFocus(void) {
     return glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY || !window) return false;
+    int x = 0, y = 0;
+    glfwGetWindowPos(window, &x, &y);
+    *outX = x;
+    *outY = y;
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    glfwSetWindowPos(window, x, y);
+}
+
+bool platformIsFullscreen(void) {
+    if (!window) return false;
+    return glfwGetWindowMonitor(window) != NULL;
+}
+
 static void glfwErrorCallback(int code, const char* description) {
     logWarn("GLFW error 0x%x: %s\n", code, description);
 }

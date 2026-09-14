@@ -196,6 +196,26 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY || !window) return false;
+    int x = 0, y = 0;
+    SDL_GetWindowPosition(window, &x, &y);
+    *outX = x;
+    *outY = y;
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    SDL_SetWindowPosition(window, x, y);
+}
+
+bool platformIsFullscreen(void) {
+    if (!window) return false;
+    Uint32 flags = SDL_GetWindowFlags(window);
+    return (flags & SDL_WINDOW_FULLSCREEN) != 0 || (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+}
+
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {

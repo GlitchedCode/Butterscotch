@@ -673,6 +673,28 @@ static bool windowIsFocused(void) {
     return [window isKeyWindow];
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY || !window) return false;
+    NSRect frame = [window frame];
+    CGFloat screenHeight = [[window screen] frame].size.height;
+    *outX = (int32_t)frame.origin.x;
+    *outY = (int32_t)(screenHeight - NSMaxY(frame));
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    CGFloat screenHeight = [[window screen] frame].size.height;
+    NSRect frame = [window frame];
+    CGFloat titleBarHeight = frame.size.height - [[window contentView] bounds].size.height;
+    [window setFrameOrigin:NSMakePoint(x, screenHeight - y - frame.size.height + titleBarHeight)];
+}
+
+bool platformIsFullscreen(void) {
+    if (!window) return false;
+    return ([window styleMask] & NSWindowStyleMaskFullScreen) != 0;
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = windowIsFocused;

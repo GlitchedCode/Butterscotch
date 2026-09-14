@@ -262,6 +262,22 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetAppState() & SDL_APPINPUTFOCUS;
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY) return false;
+    *outX = 0;
+    *outY = 0;
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    (void)x;
+    (void)y;
+}
+
+bool platformIsFullscreen(void) {
+    return (SDL_GetVideoSurface()->flags & SDL_FULLSCREEN) != 0;
+}
+
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless && gfx != SOFTWARE) {
         logError("Headless mode on SDL 1.2 requires the software renderer!\n");
