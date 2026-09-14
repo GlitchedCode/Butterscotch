@@ -8429,7 +8429,7 @@ static RValue builtin_ini_read_real(VMContext* ctx, RValue* args, int32_t argCou
         const char* key = iniArgToString(args[1], keyBuf, sizeof(keyBuf), ctx->dataWin);
 
         const char* value = Ini_getString(runner->currentIni, section, key);
-        if (value != nullptr) {
+        if (value != nullptr && strcmp(value, "undefined") != 0) {
             return RValue_makeReal(atof(value));
         }
     }
