@@ -9856,12 +9856,9 @@ static RValue builtin_event_perform_object(VMContext* ctx, RValue* args, int32_t
 
     if (objectId < 0 || (uint32_t) objectId >= runner->dataWin->objt.count) return RValue_makeReal(0.0);
 
-    int32_t count = (int32_t) arrlen(runner->instances);
-    for (int32_t i = 0; i < count; i++) {
-        Instance* inst = runner->instances[i];
-        if (inst != nullptr && inst->objectIndex == objectId && !inst->destroyed) {
-            Runner_executeEvent(runner, inst, eventType, eventSubtype);
-        }
+    Instance* inst = ctx->currentInstance;
+    if (inst != nullptr) {
+        Runner_executeEventFromObject(runner, inst, objectId, eventType, eventSubtype);
     }
     return RValue_makeReal(0.0);
 }
