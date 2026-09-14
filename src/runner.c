@@ -4458,6 +4458,9 @@ void Runner_dumpState(Runner* runner) {
 
         if (entryOnTheVarStruct.key != INT_RVALUE_HASHMAP_EMPTY_KEY) {
             char* name = VM_getVariableNameByVarId(runner->vmContext, entryOnTheVarStruct.key);
+            if (name == nullptr) {
+                name = "<unknown>";
+            }
 
             if (target.type == RVALUE_ARRAY) {
                 repeat(GMLArray_length1D(target.array), ai) {
@@ -4700,6 +4703,11 @@ char* Runner_dumpStateJson(Runner* runner) {
 
         if (entryOnTheVarStruct.key != INT_RVALUE_HASHMAP_EMPTY_KEY) {
             char* name = VM_getVariableNameByVarId(runner->vmContext, entryOnTheVarStruct.key);
+            if (name == nullptr) {
+                char fallback[32];
+                snprintf(fallback, sizeof(fallback), "<var_%d>", entryOnTheVarStruct.key);
+                name = fallback;
+            }
 
             JsonWriter_key(&w, name);
             writeRValueJson(&w, target);
