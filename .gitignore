@@ -13,3 +13,4 @@ src/android/frontend/app/.cxx/
 src/android/frontend/app/build/
 src/android/frontend/local.properties
 src/android/frontend/build/
+/.ccls-cache
