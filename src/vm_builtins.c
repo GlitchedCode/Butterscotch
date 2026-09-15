@@ -1,5 +1,6 @@
 #include "vm_builtins.h"
 #include "binary_utils.h"
+#include "data_win.h"
 #include "gml_array.h"
 #include "instance.h"
 #include "json_reader.h"
@@ -18659,10 +18660,11 @@ static RValue builtin_object_is_ancestor(VMContext* ctx, RValue* args, int32_t a
     int32_t id = RValue_toInt32(args[0]);
     int32_t ancestorId = RValue_toInt32(args[1]);
 
+    if (id >= (int32_t) ctx->dataWin->objt.count) return RValue_makeUndefined();
     int32_t parentId = ctx->dataWin->objt.objects[id].parentId;
     if (parentId == -1) return RValue_makeBool(false);
 
-    while (parentId >= -1) {
+    while (parentId >= -1 && parentId < (int32_t) ctx->dataWin->objt.count) {
         if (parentId == ancestorId) return RValue_makeBool(true);
         parentId = ctx->dataWin->objt.objects[parentId].parentId;
     }
