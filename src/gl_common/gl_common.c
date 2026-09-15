@@ -1,4 +1,5 @@
 #include "gl_common.h"
+#include "gl_wrappers.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -7,6 +8,162 @@
 #include "runner.h"
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
+
+#ifdef PLATFORM_PS3
+#include "ps3_textures.h"
+#elif PLATFORM_VITA
+#include "vita_textures.h"
+#endif
+
+void GLCommon_beginFrame(GLRenderer* gl,  int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
+    gl->gameW = gameW;
+    gl->gameH = gameH;
+    gl->windowW = windowW;
+    gl->windowH = windowH;
+
+    // Bind the application surface
+    int32_t appId = gl->base.runner->applicationSurfaceId;
+    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[appId]);
+    glViewport(0, 0, gameW, gameH);
+    gl->base.CPortX = 0;
+    gl->base.CPortY = 0;
+    gl->base.CPortW = gameW;
+    gl->base.CPortH = gameH;
+}
+
+void GLCommon_init(Renderer* renderer) {   
+    GLRenderer* gl = (GLRenderer*) renderer; 
+    DataWin* dataWin = renderer->dataWin;
+
+    Matrix4f world;
+    Matrix4f_identity(&world);
+    renderer->gmlMatrices[MATRIX_WORLD] = world;
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS3)
+    gl_init_wrappers();
+#endif
+
+    gl->alphaTestEnable = false;
+    gl->alphaTestRef = 0.0f;
+    gl->colorWriteR = true;
+    gl->colorWriteG = true;
+    gl->colorWriteB = true;
+    gl->colorWriteA = true;
+
+    // Prepare texture slots for lazy loading (PNG decode deferred to first use)
+#ifdef PLATFORM_PS3
+    // TXTR is empty on PS3; page count comes from TEXTURES.BIN.
+    gl->textureCount = PS3Textures_getPageCount();
+#elif defined(PLATFORM_VITA)
+    if (VitaTextures_Active())
+        gl->textureCount = VitaTextures_GetPageCount();
+    else
+        gl->textureCount = dataWin->txtr.count;
+#else
+    gl->textureCount = dataWin->txtr.count;
+#endif
+
+    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
+
+    glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
+
+    for (uint32_t i = 0; gl->textureCount > i; i++) {
+        gl->textureWidths[i] = 0;
+        gl->textureHeights[i] = 0;
+        gl->textureLoaded[i] = false;
+    }
+
+    GlPrimitive_reset(&gl->currentPrimitive);
+
+    // Create 1x1 white pixel texture for primitive drawing (rectangles, lines, etc.)
+    glGenTextures(1, &gl->whiteTexture);
+    glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
+    uint8_t whitePixel[4] = {255, 255, 255, 255};
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //I believe the old way this was done was wrong
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Save original counts so we know which slots are from data.win vs dynamic
+    gl->originalTexturePageCount = gl->textureCount;
+    gl->originalTpagCount = dataWin->tpag.count;
+    gl->originalSpriteCount = dataWin->sprt.count;
+
+    gl->surfaces = nullptr;
+    gl->surfaceTexture = nullptr;
+    gl->surfaceWidth = nullptr;
+    gl->surfaceHeight = nullptr;
+    gl->surfaceCount = 0;
+}
+
+void GLCommon_destroy(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*)renderer;
+    GlPrimitive_reset(&gl->currentPrimitive);
+    
+    GLCommon_deleteDebugFontTexture(&gl->debugUI);
+
+    glDeleteTextures(1, &gl->whiteTexture);
+    glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
+    gl->textureCount = 0;
+    
+    for (uint32_t i = 0; gl->surfaceCount > i; i++) {
+        if (gl->surfaceTexture[i] != 0) glDeleteTextures(1, &gl->surfaceTexture[i]);
+        if (gl->surfaces[i] != 0) glDeleteFramebuffers(1, &gl->surfaces[i]);
+    }
+    gl->surfaceCount = 0;
+
+    free(gl->surfaces);
+    free(gl->surfaceTexture);
+    free(gl->surfaceWidth);
+    free(gl->surfaceHeight);
+
+    free(gl->glTextures);
+    free(gl->textureWidths);
+    free(gl->textureHeights);
+    free(gl->textureLoaded);
+
+#ifndef PLATFORM_VITA
+    free(gl->vertexData);
+#endif
+
+    free(gl);
+}
+
+void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
+    glViewport(portX, portY, portW, portH);
+
+    gl->base.CPortX = portX;
+    gl->base.CPortY = portY;
+    gl->base.CPortW = portW;
+    gl->base.CPortH = portH;
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(portX, portY, portW, portH);
+}
+
+void GLCommon_beginView(
+    Renderer* renderer,
+    int32_t portX, int32_t portY, int32_t portW, int32_t portH,
+    GLuint activeTexture, GLApplyProjectionFunc glApplyProjection
+) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    GLCommon_applyViewport(gl, portX, portY, portW, portH);
+    int32_t viewCurrent = 0;
+    if (gl->base.runner->viewsEnabled) {
+        viewCurrent = gl->base.runner->viewCurrent;
+    }
+    RuntimeView* view = &gl->base.runner->views[viewCurrent];
+    gl->base.cameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(gl->base.runner, gl->base.cameraCurrent);
+    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+    glActiveTexture(activeTexture);
+}
 
 // ===[ Letterbox blit ]===
 
@@ -221,6 +378,80 @@ GLenum GLCommon_blendModeToDFactor(int mode) {
         case bm_min:              return GL_ONE;
         case bm_max:              return GL_ONE_MINUS_SRC_COLOR;
     }
+}
+
+// Primitive
+
+void GlPrimitive_reset(GlPrimitive* primitive) {
+    primitive->type = PRIMITIVE_NONE;
+    primitive->vertexCount = 0;
+    primitive->textureId = 0;
+    primitive->hasTexture = false;
+}
+
+static void _primitiveBeginEx(GlPrimitive* primitive, int32_t type, GLuint textureId, GLuint fallbackTexture) {
+    primitive->type = type;
+    primitive->vertexCount = 0;
+    primitive->hasTexture = (textureId != 0);
+    primitive->textureId = primitive->hasTexture
+        ? textureId
+        : fallbackTexture;
+}
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId) {
+    _primitiveBeginEx(primitive, type, textureId, 0);
+}
+
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture) {
+    _primitiveBeginEx(&gl->currentPrimitive, primitiveType, resolvedTexture, gl->whiteTexture);
+}
+
+bool GLCommon_primitivePrepare(
+    GlPrimitive* primitive, GLuint whiteTexture,
+    GLenum* mode, GLuint* textureId
+) {
+    if (primitive->vertexCount <= 0)
+        return false;
+
+    switch (primitive->type) {
+        case PRIMITIVE_POINTS: *mode = GL_POINTS; break;
+        case PRIMITIVE_LINES: *mode = GL_LINES; break;
+        case PRIMITIVE_LINE_STRIP: *mode = GL_LINE_STRIP; break;
+        case PRIMITIVE_TRIANGLES: *mode = GL_TRIANGLES; break;
+        case PRIMITIVE_TRIANGLE_STRIP: *mode = GL_TRIANGLE_STRIP; break;
+        case PRIMITIVE_TRIANGLE_FAN: *mode = GL_TRIANGLE_FAN; break;
+        default: return false;
+    }
+
+    *textureId = primitive->hasTexture
+        ? primitive->textureId
+        : whiteTexture;
+
+    return true;
+}
+
+void GLCommon_drawVertex(
+    GLRenderer* gl,
+    float x, float y, float z,
+    uint32_t color, float alpha,
+    float u, float v
+) {
+    int32_t vertexCount = gl->currentPrimitive.vertexCount;
+    GlVertex* vertex = &gl->vertexData[vertexCount];
+
+    vertex->x = x;
+    vertex->y = y;
+    vertex->z = z;
+
+    vertex->u = u;
+    vertex->v = v;
+
+    vertex->r = (uint8_t)BGR_R(color);
+    vertex->g = (uint8_t)BGR_G(color);
+    vertex->b = (uint8_t)BGR_B(color);
+    vertex->a = floatToUnormByte(alpha);
+
+    gl->currentPrimitive.vertexCount++;
 }
 
 // ===[ Debug UI font (drawTextUI) ]===
