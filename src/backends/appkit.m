@@ -430,7 +430,7 @@ static void platformSetWindowFullscreen(bool fullscreen) {
     [window toggleFullScreen:nil];
 }
 
-static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     if (!outX || !outY) return false;
     NSRect frame = [window frame];
     CGFloat screenHeight = [NSScreen mainScreen].frame.size.height;
@@ -439,7 +439,7 @@ static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     return true;
 }
 
-static void platformSetWindowPosition(int32_t x, int32_t y) {
+void platformSetWindowPosition(int32_t x, int32_t y) {
     if (!window) return;
     NSScreen *screen = [window screen];
     if (!screen) {
@@ -455,6 +455,16 @@ static void platformSetWindowPosition(int32_t x, int32_t y) {
     
     NSPoint newOrigin = NSMakePoint(appKitX, appKitY);
     [window setFrameOrigin:newOrigin];
+}
+
+bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH) return false;
+    NSScreen* screen = [NSScreen mainScreen];
+    NSRect frame = [screen frame];
+    CGFloat scale = [screen backingScaleFactor];
+    *outW = (int32_t) (frame.size.width * scale);
+    *outH = (int32_t) (frame.size.height * scale);
+    return true;
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
