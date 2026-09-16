@@ -711,6 +711,12 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     return true;
 }
 
+static void glPrefetchTexture(Renderer* renderer, int32_t pageId) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (0 > pageId || (uint32_t) pageId >= gl->textureCount) return;
+    GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId);
+}
+
 static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
@@ -2377,6 +2383,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.textureGetTexelHeight = glTextureGetTexelHeight;
     glVtable.textureGetUVs = glTextureGetUVs;
     glVtable.textureSetStage = glTextureSetStage;
+    glVtable.prefetchTexture = glPrefetchTexture;
     glVtable.gpuSetShader = glGpuSetShader;
     glVtable.gpuResetShader = glGpuResetShader;
     glVtable.shaderGetUniform = glShaderGetUniform;

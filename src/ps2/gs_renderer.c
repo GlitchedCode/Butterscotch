@@ -3123,6 +3123,8 @@ static bool gsTextureGetUVs(Renderer* renderer, uint32_t texHandle, float* outUV
 static void gsTextureSetStage(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texHandle) {
 }
 
+static void gsPrefetchTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t pageId) {}
+
 static void gsGpuSetShader(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex) {}
 static void gsGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
 static int32_t gsShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
@@ -3205,6 +3207,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.textureGetTexelHeight = gsTextureGetTexelHeight;
     gsVtable.textureGetUVs = gsTextureGetUVs;
     gsVtable.textureSetStage = gsTextureSetStage;
+    gsVtable.prefetchTexture = gsPrefetchTexture;
     gsVtable.gpuSetShader = gsGpuSetShader;
     gsVtable.gpuResetShader = gsGpuResetShader;
     gsVtable.shaderGetUniform = gsShaderGetUniform;
