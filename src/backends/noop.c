@@ -54,6 +54,24 @@ void platformSetWindowTitle(const char *title) {
     (void)title;
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY) return false;
+    *outX = 0;
+    *outY = 0;
+    return true;
+}
+
+void platformSetWindowPosition(MAYBE_UNUSED int32_t x, MAYBE_UNUSED int32_t y) {
+    // No-op
+}
+
+bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH) return false;
+    *outW = 640;
+    *outH = 480;
+    return true;
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (xPos) *xPos = 0.0;
     if (yPos) *yPos = 0.0;

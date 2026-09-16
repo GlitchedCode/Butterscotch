@@ -960,6 +960,9 @@ int loop(CommandLineArgs args, const char *argv0) {
         runner->setWindowSize = platformSetWindowSize;
         runner->getWindowSize = platformGetWindowSize;
         runner->setWindowTitle = platformSetWindowTitle;
+        runner->getWindowPosition = platformGetWindowPosition;
+        runner->setWindowPosition = platformSetWindowPosition;
+        runner->getDisplaySize = platformGetDisplaySize;
         Runner_setGameArgs(runner, currentGameArgs, (int32_t) arrlen(currentGameArgs));
         platformInitFunctions(runner);
 

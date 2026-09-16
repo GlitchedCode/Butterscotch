@@ -156,6 +156,29 @@ void platformSetWindowSize(int32_t width, int32_t height) {
         scr = SDL_GetWindowSurface(window);
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY || !window) return false;
+    int x = 0, y = 0;
+    SDL_GetWindowPosition(window, &x, &y);
+    *outX = x;
+    *outY = y;
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    SDL_SetWindowPosition(window, x, y);
+}
+
+bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH || !window) return false;
+    SDL_DisplayMode mode;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &mode) != 0) return false;
+    *outW = mode.w;
+    *outH = mode.h;
+    return true;
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
