@@ -7116,9 +7116,90 @@ static RValue builtin_buffer_peek(VMContext* ctx, MAYBE_UNUSED RValue* args, MAY
     return RValue_makeReal(0);
 }
 
-// ===[ Secure Map Stubs ]===
-STUB_RETURN_FALSE(ds_map_secure_save)
-STUB_RETURN_FALSE(ds_map_secure_load)
+// ===[ Secure Map Functions ]===
+static void secureXorCrypt(uint8_t* data, int32_t dataLen, const char* key, int32_t keyLen) {
+    if (keyLen == 0) return;
+    repeat(dataLen, i) {
+        data[i] ^= (uint8_t) key[i % keyLen];
+    }
+}
+
+static RValue builtin_ds_map_secure_save(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_map_secure_save", 2, RValue_makeBool(false));
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsMapEntry** mapPtr = dsMapGet(runner, id);
+    if (mapPtr == nullptr) return RValue_makeBool(false);
+
+    char* filename = RValue_toString(args[1], ctx->dataWin);
+
+    uint8_t* buf = nullptr;
+    ptrdiff_t count = shlen(*mapPtr);
+    dsStreamAppendU32(&buf, 403);
+    dsStreamAppendU32(&buf, (uint32_t) count);
+    repeat(count, i) {
+        RValue key = RValue_makeString((*mapPtr)[i].key);
+        dsStreamWriteValue(&buf, key);
+        dsStreamWriteValue(&buf, (*mapPtr)[i].value);
+    }
+
+    int32_t byteLen = (int32_t) arrlen(buf);
+    char* hex = (char *)safeMalloc((size_t) byteLen * 2 + 1);
+    static const char HEX_CHARS[] = "0123456789ABCDEF";
+    repeat(byteLen, i) {
+        hex[i * 2] = HEX_CHARS[(buf[i] >> 4) & 0xF];
+        hex[i * 2 + 1] = HEX_CHARS[buf[i] & 0xF];
+    }
+    hex[byteLen * 2] = '\0';
+    arrfree(buf);
+
+    int32_t hexLen = (int32_t) strlen(hex);
+    unsigned int b64Cap = BASE64_ENCODE_OUT_SIZE((unsigned int) hexLen);
+    char* b64 = (char *)safeMalloc((size_t) b64Cap + 1);
+    unsigned int b64Len = base64_encode((const unsigned char*) hex, (unsigned int) hexLen, b64);
+    b64[b64Len] = '\0';
+    free(hex);
+
+    int32_t filenameLen = (int32_t) strlen(filename);
+    secureXorCrypt((uint8_t*) b64, (int32_t) b64Len, filename, filenameLen);
+
+    bool ok = runner->fileSystem->vtable->writeFileBinary(runner->fileSystem, filename, (const uint8_t*) b64, (int32_t) b64Len);
+    free(b64);
+    free(filename);
+    return RValue_makeBool(ok);
+}
+
+static RValue builtin_ds_map_secure_load(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_map_secure_load", 2, RValue_makeBool(false));
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsMapEntry** mapPtr = dsMapGet(runner, id);
+    if (mapPtr == nullptr) return RValue_makeBool(false);
+
+    char* filename = RValue_toString(args[1], ctx->dataWin);
+
+    uint8_t* fileData = nullptr;
+    int32_t fileSize = 0;
+    bool readOk = runner->fileSystem->vtable->readFileBinary(runner->fileSystem, filename, &fileData, &fileSize);
+    if (!readOk || fileData == nullptr || fileSize == 0) {
+        free(filename);
+        return RValue_makeBool(false);
+    }
+
+    int32_t filenameLen = (int32_t) strlen(filename);
+    secureXorCrypt(fileData, fileSize, filename, filenameLen);
+    free(filename);
+
+    unsigned int decodedCap = BASE64_DECODE_OUT_SIZE((unsigned int) fileSize);
+    uint8_t* decoded = (uint8_t *)safeMalloc((size_t) decodedCap + 1);
+    unsigned int decodedLen = base64_decode((const char*) fileData, (unsigned int) fileSize, decoded);
+    free(fileData);
+    decoded[decodedLen] = '\0';
+
+    RValue result = dsMapReadNative(ctx, mapPtr, (const char*) decoded);
+    free(decoded);
+    return result;
+}
 
 // ===[ DS Grid Post ]===
 static RValue builtin_ds_grid_set_post(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -22287,7 +22368,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Buffer stubs
     VM_registerBuiltin(ctx, "buffer_peek", builtin_buffer_peek);
 
-    // Secure map stubs
+    // Secure map
     VM_registerBuiltin(ctx, "ds_map_secure_save", builtin_ds_map_secure_save);
     VM_registerBuiltin(ctx, "ds_map_secure_load", builtin_ds_map_secure_load);
 
