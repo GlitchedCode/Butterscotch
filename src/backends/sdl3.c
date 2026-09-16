@@ -159,6 +159,10 @@ bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+void platformSetVSync(bool enabled) {
+    SDL_GL_SetSwapInterval(enabled ? 1 : 0);
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     float mx = 0, my = 0;

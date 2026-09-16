@@ -364,6 +364,11 @@ bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+void platformSetVSync(bool enabled) {
+    GLint interval = enabled ? 1 : 0;
+    [glView.openGLContext setValues:&interval forParameter:NSOpenGLContextParameterSwapInterval];
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     NSPoint mouseLocation = [window mouseLocationOutsideOfEventStream];
     *xPos = mouseLocation.x;

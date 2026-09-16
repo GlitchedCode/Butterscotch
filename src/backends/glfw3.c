@@ -142,6 +142,10 @@ bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+void platformSetVSync(bool enabled) {
+    glfwSwapInterval(enabled ? 1 : 0);
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     glfwGetCursorPos(window, xPos, yPos);

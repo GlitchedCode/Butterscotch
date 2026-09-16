@@ -245,6 +245,10 @@ bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+void platformSetVSync(MAYBE_UNUSED bool enabled) {
+    // SDL1 does not support runtime vsync toggling
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;

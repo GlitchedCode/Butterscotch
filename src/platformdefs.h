@@ -138,6 +138,7 @@ void platformSleepUntil(uint64_t time);
 bool platformGetWindowPosition(int32_t* outX, int32_t* outY);
 void platformSetWindowPosition(int32_t x, int32_t y);
 bool platformGetDisplaySize(int32_t* outW, int32_t* outH);
+void platformSetVSync(bool enabled);
 
 extern InputRecording *globalInputRecording;
 

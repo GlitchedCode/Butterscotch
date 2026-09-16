@@ -72,6 +72,10 @@ bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+void platformSetVSync(MAYBE_UNUSED bool enabled) {
+    // No-op
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (xPos) *xPos = 0.0;
     if (yPos) *yPos = 0.0;
