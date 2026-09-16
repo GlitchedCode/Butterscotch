@@ -249,6 +249,7 @@ static bool noopTextureGetUVs(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED uint
     return false;
 }
 static void noopTextureSetStage(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texID) {}
+static void noopPrefetchTexture(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t pageId) {}
 static bool noopShaderIsCompiled(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t shader) {
     return false;
 }
@@ -331,6 +332,7 @@ Renderer* NoopRenderer_create(void) {
     noopVtable.textureGetTexelHeight = noopTextureGetTexelHeight;
     noopVtable.textureGetUVs = noopTextureGetUVs;
     noopVtable.textureSetStage = noopTextureSetStage;
+    noopVtable.prefetchTexture = noopPrefetchTexture;
     noopVtable.shaderIsCompiled = noopShaderIsCompiled;
     noopVtable.shadersSupported = noopShadersSupported;
     noopVtable.setMatrix = noopSetMatrix;

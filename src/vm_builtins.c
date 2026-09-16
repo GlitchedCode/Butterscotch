@@ -7687,8 +7687,38 @@ static RValue builtin_date_time_string(VMContext* ctx, RValue* args, int32_t arg
 
 // ===[ Texture Functions ]===
 
-STUB_RETURN_UNDEFINED(texture_prefetch)
-STUB_RETURN_UNDEFINED(sprite_prefetch)
+static RValue builtin_texture_prefetch(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("texture_prefetch", 1, RValue_makeUndefined());
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer != nullptr && renderer->vtable->prefetchTexture != nullptr) {
+        int32_t texId = RValue_toInt32(args[0]);
+        renderer->vtable->prefetchTexture(renderer, texId);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_sprite_prefetch(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("sprite_prefetch", 1, RValue_makeUndefined());
+    DataWin* dw = ctx->dataWin;
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer == nullptr || renderer->vtable->prefetchTexture == nullptr)
+        return RValue_makeUndefined();
+
+    int32_t spriteId = RValue_toInt32(args[0]);
+    if (0 > spriteId || (uint32_t) spriteId >= dw->sprt.count) return RValue_makeUndefined();
+    Sprite* sprite = &dw->sprt.sprites[spriteId];
+
+    for (uint32_t i = 0; i < sprite->textureCount; i++) {
+        int32_t tpagIdx = sprite->tpagIndices[i];
+        if (0 > tpagIdx || (uint32_t) tpagIdx >= dw->tpag.count) continue;
+        TexturePageItem* tpag = &dw->tpag.items[tpagIdx];
+        int16_t pageId = tpag->texturePageId;
+        if (0 > pageId) continue;
+        renderer->vtable->prefetchTexture(renderer, pageId);
+    }
+    return RValue_makeUndefined();
+}
+
 STUB_RETURN_UNDEFINED(sprite_flush)
 
 // ===[ Audio Built-in Functions ]===

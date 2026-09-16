@@ -228,6 +228,7 @@ typedef struct {
     // Fills outUVs[0..3] with the texture sub-region on its page (left, top, right, bottom). Returns false if the handle can't be resolved.
     bool (*textureGetUVs)(Renderer* renderer, uint32_t texID, float* outUVs);
     void (*textureSetStage)(Renderer* renderer, int32_t slot, uint32_t texID);
+    void (*prefetchTexture)(Renderer* renderer, int32_t pageId);
     bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
     bool (*shadersSupported)(void);
     void (*setMatrix)(Renderer* renderer, int32_t matrixType, Matrix4f matrix);
