@@ -800,16 +800,6 @@ static void maSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int3
     // miniaudio handles channel management internally, this is a no-op
 }
 
-static void maSetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
-    MaAudioSystem* ma = (MaAudioSystem*) audio;
-    AudioSystem_setGroupGain(audio, groupIndex, gain, timeMs);
-    repeat(MAX_SOUND_INSTANCES, i) {
-        SoundInstance* inst = &ma->instances[i];
-        if (inst->active && AudioSystem_soundGroup(audio, inst->soundIndex) == groupIndex)
-            ma_sound_set_volume(&inst->maSound, inst->currentGain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
-    }
-}
-
 static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
     if (groupIndex > 0 && audio->dw->agrp.count > (uint32_t) groupIndex) {
         AudioGroup* audioGroupEntry = &audio->dw->agrp.audioGroups[groupIndex];
@@ -851,6 +841,51 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
 
 static bool maGroupIsLoaded(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t groupIndex) {
     return (arrlen(audio->audioGroups) > groupIndex);
+}
+
+static void maStopGroup(AudioSystem* audio, int32_t groupIndex) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    DataWin* dw = audio->dw;
+    if (0 > groupIndex || dw->sond.count == 0) return;
+
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (!inst->active) continue;
+        if (inst->soundIndex >= 0 && (uint32_t) inst->soundIndex < dw->sond.count
+            && dw->sond.sounds[inst->soundIndex].audioGroup == groupIndex) {
+            ma_sound_stop(&inst->maSound);
+            ma_sound_uninit(&inst->maSound);
+            if (inst->ownsDecoder) {
+                ma_decoder_uninit(&inst->decoder);
+            }
+            inst->active = false;
+        }
+    }
+}
+
+static void maSetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    DataWin* dw = audio->dw;
+    if (0 > groupIndex || dw->sond.count == 0) return;
+
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (!inst->active) continue;
+        if (inst->soundIndex >= 0 && (uint32_t) inst->soundIndex < dw->sond.count
+            && dw->sond.sounds[inst->soundIndex].audioGroup == groupIndex) {
+            if (timeMs == 0) {
+                inst->currentGain = gain;
+                inst->targetGain = gain;
+                inst->fadeTimeRemaining = 0.0f;
+                ma_sound_set_volume(&inst->maSound, gain);
+            } else {
+                inst->startGain = inst->currentGain;
+                inst->targetGain = gain;
+                inst->fadeTotalTime = (float) timeMs / 1000.0f;
+                inst->fadeTimeRemaining = inst->fadeTotalTime;
+            }
+        }
+    }
 }
 
 // ===[ Audio Streams ]===
@@ -958,6 +993,8 @@ MaAudioSystem* MaAudioSystem_create(DataWin* dataWin) {
     maAudioSystemVtable.setGroupGain = maSetGroupGain;
     maAudioSystemVtable.groupLoad = maGroupLoad;
     maAudioSystemVtable.groupIsLoaded = maGroupIsLoaded;
+    maAudioSystemVtable.stopGroup = maStopGroup;
+    maAudioSystemVtable.setGroupGain = maSetGroupGain;
     maAudioSystemVtable.createStream = maCreateStream;
     maAudioSystemVtable.destroyStream = maDestroyStream;
     ma->base.vtable = &maAudioSystemVtable;
