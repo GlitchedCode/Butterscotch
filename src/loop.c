@@ -998,6 +998,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         runner->getWindowPosition = platformGetWindowPosition;
         runner->setWindowPosition = platformSetWindowPosition;
         runner->getDisplaySize = platformGetDisplaySize;
+        runner->setVSync = platformSetVSync;
         Runner_setGameArgs(runner, currentGameArgs, (int32_t) arrlen(currentGameArgs));
         platformInitFunctions(runner);
 
