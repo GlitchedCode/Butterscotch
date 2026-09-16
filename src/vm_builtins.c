@@ -9035,6 +9035,7 @@ static RValue builtin_keyboard_clear(VMContext* ctx, RValue* args, int32_t argCo
 }
 
 static RValue builtin_io_clear(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    logDebug("Clearing all input state\n");
     Runner* runner = ctx->runner;
     // Clear all keyboard state
     RunnerKeyboard_beginFrame(runner->keyboard);
@@ -9042,6 +9043,9 @@ static RValue builtin_io_clear(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
     memset(runner->mouse->buttonDown, 0, sizeof(runner->mouse->buttonDown));
     memset(runner->mouse->buttonPressed, 0, sizeof(runner->mouse->buttonPressed));
     memset(runner->mouse->buttonReleased, 0, sizeof(runner->mouse->buttonReleased));
+    // Clear all gamepad state
+    for (int i = 0; i < runner->gamepads->connectedCount; i++)
+        RunnerGamepad_beginFrame(runner->gamepads);
     return RValue_makeUndefined();
 }
 

@@ -594,7 +594,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 }
 
 static void glPrefetchTexture(Renderer* renderer, int32_t pageId) {
-    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    GLRenderer* gl = (GLRenderer*) renderer;
     if (0 > pageId || (uint32_t) pageId >= gl->textureCount) return;
     GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId);
 }
