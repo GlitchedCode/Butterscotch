@@ -40,6 +40,8 @@ typedef struct {
     void (*setChannelCount)(AudioSystem* audio, int32_t count);
     void (*groupLoad)(AudioSystem* audio, int32_t groupIndex);
     bool (*groupIsLoaded)(AudioSystem* audio, int32_t groupIndex);
+    void (*stopGroup)(AudioSystem* audio, int32_t groupIndex);
+    void (*setGroupGain)(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs);
     int32_t (*createStream)(AudioSystem* audio, const char* filename);
     bool (*destroyStream)(AudioSystem* audio, int32_t streamIndex);
 } AudioSystemVtable;

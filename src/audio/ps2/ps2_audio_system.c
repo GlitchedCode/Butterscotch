@@ -1286,6 +1286,70 @@ static bool ps2GroupIsLoaded(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32
     return true;
 }
 
+static void ps2StopGroup(AudioSystem* audio, int32_t groupIndex) {
+    Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
+    DataWin* dw = audio->dw;
+    if (0 > groupIndex || dw->sond.count == 0) return;
+
+    repeat(MAX_PS2_SOUND_INSTANCES, i) {
+        Ps2SoundInstance* inst = &ps2->instances[i];
+        if (!inst->active) continue;
+        if (inst->soundIndex >= 0 && (uint32_t) inst->soundIndex < dw->sond.count
+            && dw->sond.sounds[inst->soundIndex].audioGroup == groupIndex) {
+            inst->active = false;
+        }
+    }
+    repeat(MAX_MUSIC_STREAMS, i) {
+        Ps2MusicStream* stream = &ps2->musicStreams[i];
+        if (!stream->active) continue;
+        if (stream->soundIndex >= 0 && (uint32_t) stream->soundIndex < dw->sond.count
+            && dw->sond.sounds[stream->soundIndex].audioGroup == groupIndex) {
+            stream->active = false;
+        }
+    }
+}
+
+static void ps2SetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
+    Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
+    DataWin* dw = audio->dw;
+    if (0 > groupIndex || dw->sond.count == 0) return;
+
+    repeat(MAX_PS2_SOUND_INSTANCES, i) {
+        Ps2SoundInstance* inst = &ps2->instances[i];
+        if (!inst->active) continue;
+        if (inst->soundIndex >= 0 && (uint32_t) inst->soundIndex < dw->sond.count
+            && dw->sond.sounds[inst->soundIndex].audioGroup == groupIndex) {
+            if (timeMs == 0) {
+                inst->currentGain = gain;
+                inst->targetGain = gain;
+                inst->fadeTimeRemaining = 0.0f;
+            } else {
+                inst->startGain = inst->currentGain;
+                inst->targetGain = gain;
+                inst->fadeTotalTime = (float) timeMs / 1000.0f;
+                inst->fadeTimeRemaining = inst->fadeTotalTime;
+            }
+        }
+    }
+    repeat(MAX_MUSIC_STREAMS, i) {
+        Ps2MusicStream* stream = &ps2->musicStreams[i];
+        if (!stream->active) continue;
+        if (stream->soundIndex >= 0 && (uint32_t) stream->soundIndex < dw->sond.count
+            && dw->sond.sounds[stream->soundIndex].audioGroup == groupIndex) {
+            if (timeMs == 0) {
+                stream->currentGain = gain;
+                stream->targetGain = gain;
+                stream->fadeTimeRemaining = 0.0f;
+            } else {
+                stream->startGain = stream->currentGain;
+                stream->targetGain = gain;
+                stream->fadeTotalTime = (float) timeMs / 1000.0f;
+                stream->fadeTimeRemaining = stream->fadeTotalTime;
+            }
+        }
+    }
+}
+
 static int32_t ps2CreateStream(AudioSystem* audio, const char* filename) {
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     if (!ps2->initialized) return -1;
@@ -1349,6 +1413,8 @@ Ps2AudioSystem* Ps2AudioSystem_create(void) {
     ps2AudioSystemVtable.setChannelCount = ps2SetChannelCount;
     ps2AudioSystemVtable.groupLoad = ps2GroupLoad;
     ps2AudioSystemVtable.groupIsLoaded = ps2GroupIsLoaded;
+    ps2AudioSystemVtable.stopGroup = ps2StopGroup;
+    ps2AudioSystemVtable.setGroupGain = ps2SetGroupGain;
     ps2AudioSystemVtable.createStream = ps2CreateStream;
     ps2AudioSystemVtable.destroyStream = ps2DestroyStream;
     ps2->base.vtable = &ps2AudioSystemVtable;
