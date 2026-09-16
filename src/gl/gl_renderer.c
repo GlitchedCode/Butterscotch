@@ -1305,6 +1305,12 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     return true;
 }
 
+static void glPrefetchTexture(Renderer* renderer, int32_t pageId) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (0 > pageId || (uint32_t) pageId >= gl->textureCount) return;
+    GLRenderer_ensureTextureLoaded(gl, (uint32_t) pageId);
+}
+
 // Resolves a TPAG index to a loaded GL texture. Returns false if drawing should be skipped.
 static bool resolveSpriteTexture(GLRenderer* gl, int32_t tpagIndex, TexturePageItem** outTpag, GLuint* outTexId, int32_t* outTexW, int32_t* outTexH) {
     DataWin* dw = gl->base.dataWin;
@@ -3586,6 +3592,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.textureGetUVs = glTextureGetUVs,
     glVtable.shaderGetSamplerIndex = glShaderGetSamplerIndex,
     glVtable.textureSetStage = glTextureSetStage,
+    glVtable.prefetchTexture = glPrefetchTexture,
     glVtable.shaderIsCompiled = glShaderIsCompiled,
     glVtable.shadersSupported = glShadersSupported,
     glVtable.setMatrix = glSetMatrix,
