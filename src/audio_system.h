@@ -53,6 +53,7 @@ typedef struct {
     void (*setGroupGain)(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs);
     void (*groupLoad)(AudioSystem* audio, int32_t groupIndex);
     bool (*groupIsLoaded)(AudioSystem* audio, int32_t groupIndex);
+    void (*stopGroup)(AudioSystem* audio, int32_t groupIndex);
     int32_t (*createStream)(AudioSystem* audio, const char* filename);
     bool (*destroyStream)(AudioSystem* audio, int32_t streamIndex);
     // encoded data stays alive until the voice ends or is stopped.

@@ -7834,8 +7834,14 @@ static RValue builtin_array_equals(VMContext* ctx, RValue* args, int32_t argCoun
     return RValue_makeBool(true);
 }
 
-// ===[ Audio Group Stubs ]===
-STUB_RETURN_UNDEFINED(audio_group_stop_all)
+// ===[ Audio Group Functions ]===
+static RValue builtin_audio_group_stop_all(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio == nullptr) return RValue_makeUndefined();
+    int32_t groupIndex = RValue_toInt32(args[0]);
+    audio->vtable->stopGroup(audio, groupIndex);
+    return RValue_makeUndefined();
+}
 
 // ===[ Display/Input Stubs ]===
 STUB_RETURN_UNDEFINED(display_reset)
@@ -25670,7 +25676,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "file_rename", builtin_file_rename);
     VM_registerBuiltin(ctx, "file_copy", builtin_file_copy);
 
-    // Audio group stubs
+    // Audio group
     VM_registerBuiltin(ctx, "audio_group_stop_all", builtin_audio_group_stop_all);
 
     // Display stubs
