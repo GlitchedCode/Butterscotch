@@ -117,7 +117,7 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     glfwSetWindowSize(window, logicalW, logicalH);
 }
 
-static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     if (!outX || !outY) return false;
     int rawX, rawY;
     float xscale, yscale;
@@ -128,13 +128,24 @@ static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     return true;
 }
 
-static void platformSetWindowPosition(int32_t x, int32_t y) {
+void platformSetWindowPosition(int32_t x, int32_t y) {
     if (!window) return;
     float xscale, yscale;
     glfwGetWindowContentScale(window, &xscale, &yscale);
     int targetX = (int)(x / xscale + 0.5f);
     int targetY = (int)(y / yscale + 0.5f);
     glfwSetWindowPos(window, targetX, targetY);
+}
+
+bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH) return false;
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    if (!monitor) return false;
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    if (!mode) return false;
+    *outW = mode->width;
+    *outH = mode->height;
+    return true;
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {

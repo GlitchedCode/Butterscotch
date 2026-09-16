@@ -135,13 +135,24 @@ void platformSetWindowSize(int32_t width, int32_t height) {
         scr = SDL_GetWindowSurface(window);
 }
 
-static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
     if (!outX || !outY) return false;
     return SDL_GetWindowPosition(window, outX, outY);
 }
 
-static void platformSetWindowPosition(int32_t x, int32_t y) {
+void platformSetWindowPosition(int32_t x, int32_t y) {
     SDL_SetWindowPosition(window, x, y);
+}
+
+bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH || !window) return false;
+    SDL_DisplayID displayId = SDL_GetDisplayForWindow(window);
+    if (!displayId) return false;
+    const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(displayId);
+    if (!mode) return false;
+    *outW = mode->w;
+    *outH = mode->h;
+    return true;
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {

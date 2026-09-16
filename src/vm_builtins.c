@@ -14462,14 +14462,24 @@ static RValue builtin_color_get_value(MAYBE_UNUSED VMContext* ctx, RValue* args,
     return RValue_makeReal(v);
 }
 
-// Display stubs
-STUB_RETURN_VALUE(display_get_width, 640.0)
-STUB_RETURN_VALUE(display_get_height, 480.0)
+// Display functions
+static RValue builtin_display_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getDisplaySize != nullptr) {
+        int32_t w = 0, h = 0;
+        if (runner->getDisplaySize(&w, &h)) return RValue_makeReal((GMLReal) w);
+    }
+    return RValue_makeReal(640.0);
+}
 
-// Window stubs
-STUB_RETURN_ZERO(window_get_x)
-STUB_RETURN_ZERO(window_get_y)
-STUB_RETURN_UNDEFINED(window_set_position)
+static RValue builtin_display_get_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getDisplaySize != nullptr) {
+        int32_t w = 0, h = 0;
+        if (runner->getDisplaySize(&w, &h)) return RValue_makeReal((GMLReal) h);
+    }
+    return RValue_makeReal(480.0);
+}
 
 static int32_t resolveGuiWidth(Runner* runner) {
     if (runner->guiWidth > 0) return runner->guiWidth;
@@ -25799,9 +25809,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "window_has_focus", builtin_window_has_focus);
     VM_registerBuiltin(ctx, "window_set_cursor", builtin_window_set_cursor);
     VM_registerBuiltin(ctx, "window_get_cursor", builtin_window_get_cursor);
-    VM_registerBuiltin(ctx, "window_get_x", builtin_window_get_x);
-    VM_registerBuiltin(ctx, "window_get_y", builtin_window_get_y);
-    VM_registerBuiltin(ctx, "window_set_position", builtin_window_set_position);
 
     // Display mouse
     VM_registerBuiltin(ctx, "display_mouse_get_x", builtin_display_mouse_get_x);

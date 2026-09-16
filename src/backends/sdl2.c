@@ -140,12 +140,12 @@ static float platformGetWindowScale(void) {
     return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
 }
 
-static void platformSetWindowPosition(int32_t x, int32_t y) {
+void platformSetWindowPosition(int32_t x, int32_t y) {
     float scale = platformGetWindowScale();
     SDL_SetWindowPosition(window, (int)(x / scale + 0.5f), (int)(y / scale + 0.5f));
 }
 
-static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
     if (!outX || !outY) return false;
     int32_t rawX, rawY;
     float scale = platformGetWindowScale();
@@ -169,6 +169,15 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
+}
+
+bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH || !window) return false;
+    SDL_DisplayMode mode;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &mode) != 0) return false;
+    *outW = mode.w;
+    *outH = mode.h;
+    return true;
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
