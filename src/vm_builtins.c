@@ -7101,9 +7101,24 @@ static RValue builtin_array_equals(MAYBE_UNUSED VMContext* ctx, RValue* args, MA
     return RValue_makeBool(true);
 }
 
-// ===[ Audio Group Stubs ]===
-STUB_RETURN_UNDEFINED(audio_group_stop_all)
-STUB_RETURN_UNDEFINED(audio_group_set_gain)
+// ===[ Audio Group Functions ]===
+static RValue builtin_audio_group_stop_all(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio == nullptr) return RValue_makeUndefined();
+    int32_t groupIndex = RValue_toInt32(args[0]);
+    audio->vtable->stopGroup(audio, groupIndex);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_group_set_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio == nullptr) return RValue_makeUndefined();
+    int32_t groupIndex = RValue_toInt32(args[0]);
+    float gain = (float) RValue_toReal(args[1]);
+    uint32_t timeMs = (uint32_t) RValue_toInt32(args[2]);
+    audio->vtable->setGroupGain(audio, groupIndex, gain, timeMs);
+    return RValue_makeUndefined();
+}
 
 // ===[ Display/Input Stubs ]===
 STUB_RETURN_UNDEFINED(display_reset)
@@ -22357,7 +22372,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "file_delete", builtin_file_delete);
     VM_registerBuiltin(ctx, "file_copy", builtin_file_copy);
 
-    // Audio group stubs
+    // Audio group
     VM_registerBuiltin(ctx, "audio_group_stop_all", builtin_audio_group_stop_all);
     VM_registerBuiltin(ctx, "audio_group_set_gain", builtin_audio_group_set_gain);
 
