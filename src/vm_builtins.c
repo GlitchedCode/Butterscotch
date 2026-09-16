@@ -4796,6 +4796,28 @@ static RValue builtin_ds_map_find_next(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeOwnedString(safeStrdup((*mapPtr)[idx + 1].key));
 }
 
+static RValue builtin_ds_map_find_last(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_map_find_last", 1, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsMapEntry** mapPtr = dsMapGet(runner, id);
+    if (mapPtr == nullptr || shlen(*mapPtr) == 0) return RValue_makeUndefined();
+    ptrdiff_t last = shlen(*mapPtr) - 1;
+    return RValue_makeOwnedString(safeStrdup((*mapPtr)[last].key));
+}
+
+static RValue builtin_ds_map_find_previous(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_map_find_previous", 2, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsMapEntry** mapPtr = dsMapGet(runner, id);
+    if (mapPtr == nullptr || shlen(*mapPtr) == 0) return RValue_makeUndefined();
+
+    ptrdiff_t idx = getValueIndexInMap(mapPtr, args[1], ctx->runner->dataWin);
+    if (idx <= 0) return RValue_makeUndefined();
+    return RValue_makeOwnedString(safeStrdup((*mapPtr)[idx - 1].key));
+}
+
 static RValue builtin_ds_map_size(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("ds_map_size", 1, RValue_makeReal(0.0));
     Runner* runner = ctx->runner;
@@ -7099,7 +7121,24 @@ STUB_RETURN_FALSE(ds_map_secure_save)
 STUB_RETURN_FALSE(ds_map_secure_load)
 
 // ===[ DS Grid Post ]===
-STUB_RETURN_UNDEFINED(ds_grid_set_post)
+static RValue builtin_ds_grid_set_post(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_MOST("ds_grid_set_post", 4, RValue_makeUndefined());
+
+    DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
+    if (grid == nullptr) return RValue_makeUndefined();
+    int32_t x = RValue_toInt32(args[1]);
+    int32_t y = RValue_toInt32(args[2]);
+
+    if (0 > x || 0 > y || x >= grid->width || y >= grid->height)
+        return RValue_makeUndefined();
+
+    RValue* slot = &grid->items[x + (y * grid->width)];
+    RValue oldValue = RValue_makeIndependent(*slot);
+    RValue newValue = RValue_makeIndependent(args[3]);
+    RValue_free(slot);
+    *slot = newValue;
+    return oldValue;
+}
 
 // ===[ Steam Achievement Stubs ]===
 STUB_RETURN_FALSE(steam_get_achievement)
@@ -21991,6 +22030,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_map_exists", builtin_ds_map_exists);
     VM_registerBuiltin(ctx, "ds_map_find_first", builtin_ds_map_find_first);
     VM_registerBuiltin(ctx, "ds_map_find_next", builtin_ds_map_find_next);
+    VM_registerBuiltin(ctx, "ds_map_find_last", builtin_ds_map_find_last);
+    VM_registerBuiltin(ctx, "ds_map_find_previous", builtin_ds_map_find_previous);
     VM_registerBuiltin(ctx, "ds_map_size", builtin_ds_map_size);
     VM_registerBuiltin(ctx, "ds_map_destroy", builtin_ds_map_destroy);
     VM_registerBuiltin(ctx, "ds_map_copy", builtin_ds_map_copy);    
