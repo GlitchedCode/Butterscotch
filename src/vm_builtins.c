@@ -12960,14 +12960,54 @@ static RValue builtin_color_get_value(MAYBE_UNUSED VMContext* ctx, RValue* args,
     return RValue_makeReal(v);
 }
 
-// Display stubs
-STUB_RETURN_VALUE(display_get_width, 640.0)
-STUB_RETURN_VALUE(display_get_height, 480.0)
+// Display functions
+static RValue builtin_display_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getDisplaySize != nullptr) {
+        int32_t w = 0, h = 0;
+        if (runner->getDisplaySize(&w, &h)) return RValue_makeReal((GMLReal) w);
+    }
+    return RValue_makeReal(640.0);
+}
 
-// Window stubs
-STUB_RETURN_ZERO(window_get_x)
-STUB_RETURN_ZERO(window_get_y)
-STUB_RETURN_UNDEFINED(window_set_position)
+static RValue builtin_display_get_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getDisplaySize != nullptr) {
+        int32_t w = 0, h = 0;
+        if (runner->getDisplaySize(&w, &h)) return RValue_makeReal((GMLReal) h);
+    }
+    return RValue_makeReal(480.0);
+}
+
+// Window position functions
+static RValue builtin_window_get_x(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getWindowPosition != nullptr) {
+        int32_t x = 0, y = 0;
+        if (runner->getWindowPosition(&x, &y)) return RValue_makeReal((GMLReal) x);
+    }
+    return RValue_makeReal(0.0);
+}
+
+static RValue builtin_window_get_y(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getWindowPosition != nullptr) {
+        int32_t x = 0, y = 0;
+        if (runner->getWindowPosition(&x, &y)) return RValue_makeReal((GMLReal) y);
+    }
+    return RValue_makeReal(0.0);
+}
+
+static RValue builtin_window_set_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("window_set_position", 2, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->setWindowPosition != nullptr) {
+        int32_t x = RValue_toInt32(args[0]);
+        int32_t y = RValue_toInt32(args[1]);
+        runner->setWindowPosition(x, y);
+    }
+    return RValue_makeUndefined();
+}
 
 static int32_t resolveGuiWidth(Runner* runner) {
     if (runner->guiWidth > 0) return runner->guiWidth;
