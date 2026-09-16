@@ -13879,10 +13879,24 @@ static RValue builtin_color_get_value(MAYBE_UNUSED VMContext* ctx, RValue* args,
     return RValue_makeReal(v);
 }
 
-// Display stubs
-STUB_RETURN_VALUE(display_get_width, 640.0)
-STUB_RETURN_VALUE(display_get_height, 480.0)
+// Display functions
+static RValue builtin_display_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getDisplaySize != nullptr) {
+        int32_t w = 0, h = 0;
+        if (runner->getDisplaySize(&w, &h)) return RValue_makeReal((GMLReal) w);
+    }
+    return RValue_makeReal(640.0);
+}
 
+static RValue builtin_display_get_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getDisplaySize != nullptr) {
+        int32_t w = 0, h = 0;
+        if (runner->getDisplaySize(&w, &h)) return RValue_makeReal((GMLReal) h);
+    }
+    return RValue_makeReal(480.0);
+}
 
 static int32_t resolveGuiWidth(Runner* runner) {
     if (runner->guiWidth > 0) return runner->guiWidth;

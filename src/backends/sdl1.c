@@ -225,6 +225,26 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY) return false;
+    *outX = 0;
+    *outY = 0;
+    return true;
+}
+
+void platformSetWindowPosition(MAYBE_UNUSED int32_t x, MAYBE_UNUSED int32_t y) {
+    // SDL1 does not support window positioning
+}
+
+bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH) return false;
+    const SDL_VideoInfo* info = SDL_GetVideoInfo();
+    if (!info) return false;
+    *outW = info->current_w;
+    *outH = info->current_h;
+    return true;
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
