@@ -7844,7 +7844,17 @@ static RValue builtin_audio_group_stop_all(VMContext* ctx, RValue* args, MAYBE_U
 }
 
 // ===[ Display/Input Stubs ]===
-STUB_RETURN_UNDEFINED(display_reset)
+static RValue builtin_display_reset(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    logSemiStubbedFunction(ctx, "display_reset");
+    if (argCount >= 2) {
+        Runner* runner = ctx->runner;
+        if (runner != nullptr && runner->setVSync != nullptr) {
+            int32_t vsync = RValue_toInt32(args[1]);
+            runner->setVSync(vsync != 0);
+        }
+    }
+    return RValue_makeUndefined();
+}
 STUB_RETURN_UNDEFINED(screen_save)
 
 // ===[ Buffer Stubs ]===
@@ -25689,7 +25699,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Audio group
     VM_registerBuiltin(ctx, "audio_group_stop_all", builtin_audio_group_stop_all);
 
-    // Display stubs
+    // Display
     VM_registerBuiltin(ctx, "display_reset", builtin_display_reset);
     VM_registerBuiltin(ctx, "screen_save", builtin_screen_save);
 

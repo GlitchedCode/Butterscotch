@@ -755,6 +755,7 @@ struct Runner {
     bool (*getWindowPosition)(int32_t* outX, int32_t* outY);
     void (*setWindowPosition)(int32_t x, int32_t y);
     bool (*getDisplaySize)(int32_t* outW, int32_t* outH);
+    void (*setVSync)(bool enabled);
     bool (*windowHasFocus)(void);
     bool (*getWindowFullscreen)(void);
     void (*setWindowFullscreen)(bool fullscreen);
