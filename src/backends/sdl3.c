@@ -8,6 +8,7 @@
 #include "platformdefs.h"
 #include "gettime.h"
 #include <ctype.h>
+#include <stdbool.h>
 #include "runner_mouse.h"
 
 static Runner *g_runner;
@@ -159,6 +160,10 @@ bool platformGetDisplaySize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+void platformSetVSync(bool enabled) {
+    SDL_GL_SetSwapInterval(enabled ? 1 : 0);
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     float mx = 0, my = 0;
@@ -275,6 +280,8 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 
