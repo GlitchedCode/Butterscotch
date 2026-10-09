@@ -1913,7 +1913,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     GLint prevBinding = 0;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
 
-    uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
+    uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount, gl->surfaceFreeQueue, &gl->surfaceFreeQueueLen);
 
     int32_t texW = gl->needsPOT ? nextPow2(width)  : width;
     int32_t texH = gl->needsPOT ? nextPow2(height) : height;
@@ -2023,6 +2023,7 @@ static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
     gl->surfaceTexture[surfaceId] = 0;
     gl->surfaceWidth[surfaceId] = 0;
     gl->surfaceHeight[surfaceId] = 0;
+    GLCommon_pushFreedSurface((uint32_t) surfaceId, gl->surfaceFreeQueue, &gl->surfaceFreeQueueLen);
     logInfo("GL: Freed Surface %d\n", surfaceId);
 }
 

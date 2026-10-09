@@ -99,6 +99,8 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
+    uint32_t surfaceFreeQueue[GL_SURFACE_FREE_QUEUE_CAP];
+    uint32_t surfaceFreeQueueLen;
 
     // Blending mode + factors
     bool blendEnable;

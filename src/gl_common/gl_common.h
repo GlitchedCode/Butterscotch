@@ -33,9 +33,19 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
 // Encoded as (GL_SURFACE_TEXTURE_FLAG | surfaceID); tpag counts never approach this, so the two can't collide.
 #define GL_SURFACE_TEXTURE_FLAG 0x40000000u
 
+// Maximum number of freed surface IDs to keep in the reuse queue.
+// Prevents immediate recycling of freed slots so that stale GML-side
+// surface handles don't alias a freshly-created surface.
+#define GL_SURFACE_FREE_QUEUE_CAP 32
+
 // Returns a free slot index, growing the surfaces arrays if all slots are in use.
 // The newly returned slot has surfaces[i] == 0 and all dimensions zeroed.
-uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count);
+// If a freed-slot queue is provided, recycled indices are drawn from it first.
+uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count, uint32_t* freeQueue, uint32_t* freeQueueLen);
+
+// Pushes a freed surface index onto the reuse queue.  If the queue is full
+// the index is silently discarded (the slot is immediately reclaimable).
+void GLCommon_pushFreedSurface(uint32_t surfaceIndex, uint32_t* freeQueue, uint32_t* freeQueueLen);
 
 // Blits a region between two surface FBOs.
 // If part == false, ignores src{X,Y,W,H} and copies the whole source to a matching-size box at (dstX, dstY) on the destination.

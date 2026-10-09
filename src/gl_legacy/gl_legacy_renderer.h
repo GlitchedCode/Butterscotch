@@ -61,6 +61,8 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
+    uint32_t surfaceFreeQueue[GL_SURFACE_FREE_QUEUE_CAP];
+    uint32_t surfaceFreeQueueLen;
 
     // True if the GPU doesn't support NPOT textures (GL < 2.0), requiring
     // FBO color-attachment textures to have power-of-two dimensions.

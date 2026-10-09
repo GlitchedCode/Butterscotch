@@ -2504,7 +2504,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     GLint prevBinding = 0;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
 
-    uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
+    uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount, gl->surfaceFreeQueue, &gl->surfaceFreeQueueLen);
 
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
 
@@ -2565,6 +2565,7 @@ static void glSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     gl->surfaceTexture[surfaceID] = 0;
     gl->surfaceWidth[surfaceID] = 0;
     gl->surfaceHeight[surfaceID] = 0;
+    GLCommon_pushFreedSurface((uint32_t) surfaceID, gl->surfaceFreeQueue, &gl->surfaceFreeQueueLen);
     logInfo("GL: Freed Surface %u\n", surfaceID);
 }
 

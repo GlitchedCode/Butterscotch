@@ -48,10 +48,37 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
 
 // ===[ Surface arrays ]===
 
-uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count) {
+void GLCommon_pushFreedSurface(uint32_t surfaceIndex, uint32_t* freeQueue, uint32_t* freeQueueLen) {
+    if (*freeQueueLen < GL_SURFACE_FREE_QUEUE_CAP) {
+        freeQueue[*freeQueueLen] = surfaceIndex;
+        (*freeQueueLen)++;
+    } else {
+        // Queue is full — release the oldest slot so it can be reused.
+        // Shift the queue left and append the new entry at the end.
+        uint32_t evicted = freeQueue[0];
+        memmove(freeQueue, freeQueue + 1, (GL_SURFACE_FREE_QUEUE_CAP - 1) * sizeof(uint32_t));
+        freeQueue[GL_SURFACE_FREE_QUEUE_CAP - 1] = surfaceIndex;
+        // The evicted slot is already zeroed (surfaces[evicted] == 0), so it's
+        // naturally discoverable by the scan in findOrAllocateSurfaceSlot.
+        (void) evicted;
+    }
+}
+
+uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count, uint32_t* freeQueue, uint32_t* freeQueueLen) {
+    // Scan for a slot whose GL resources have been released (surfaces[i] == 0).
+    // Slots currently sitting in the free queue still have surfaces[i] == 0 but
+    // are intentionally skipped — they're held back to avoid ID aliasing.
     repeat(*count, i) {
-        if ((*surfaces)[i] == 0)
-            return i;
+        if ((*surfaces)[i] == 0) {
+            // Check whether this slot is still parked in the reuse queue.
+            bool inQueue = false;
+            if (freeQueue != nullptr && freeQueueLen != nullptr) {
+                repeat(*freeQueueLen, q) {
+                    if (freeQueue[q] == i) { inQueue = true; break; }
+                }
+            }
+            if (!inQueue) return i;
+        }
     }
 
     uint32_t newIndex = *count;
