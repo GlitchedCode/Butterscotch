@@ -88,6 +88,9 @@ static bool noopGroupIsLoaded(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int3
     return true;
 }
 
+static void noopStopGroup(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t groupIndex) {}
+static void noopSetGroupGain(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t groupIndex, MAYBE_UNUSED float gain, MAYBE_UNUSED uint32_t timeMs) {}
+
 static int32_t noopCreateStream(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED const char* filename) {
     return -1;
 }
@@ -128,6 +131,8 @@ NoopAudioSystem* NoopAudioSystem_create(void) {
     noopVtable.setGroupGain = noopSetGroupGain,
     noopVtable.groupLoad = noopGroupLoad,
     noopVtable.groupIsLoaded = noopGroupIsLoaded,
+    noopVtable.stopGroup = noopStopGroup,
+    noopVtable.setGroupGain = noopSetGroupGain,
     noopVtable.createStream = noopCreateStream,
     noopVtable.destroyStream = noopDestroyStream,
     noopVtable.playEncoded = noopPlayEncoded,
