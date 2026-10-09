@@ -5251,16 +5251,23 @@ static RValue builtin_ds_list_add(VMContext* ctx, RValue* args, int32_t argCount
 }
 
 static RValue builtin_ds_list_set(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("ds_list_set", 1, RValue_makeUndefined());
-    REQUIRE_ARGC_AT_MOST("ds_list_set", 2, RValue_makeUndefined());
+    // ds_list_set(id, index, val) — like ds_list_replace but grows the list if needed.
+    // GameMaker pads intermediate positions with 0.
     Runner* runner = ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
     int32_t pos = RValue_toInt32(args[1]);
     DsList* list = dsListGet(runner, id);
     if (list == nullptr) return RValue_makeUndefined();
-    if (pos >= 0 && pos < arrlen(list->items)) {
-        list->items[pos] = RValue_makeIndependent(args[2]);
+    if (0 > pos) return RValue_makeUndefined();
+    int32_t len = (int32_t) arrlen(list->items);
+    if (pos >= len) {
+        // Grow the list, padding with 0 up to the requested index.
+        for (int32_t i = len; i <= pos; i++) {
+            arrput(list->items, RValue_makeReal(0.0));
+        }
     }
+    RValue_free(&list->items[pos]);
+    list->items[pos] = RValue_makeIndependent(args[2]);
     return RValue_makeUndefined();
 }
 
