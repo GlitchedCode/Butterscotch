@@ -9903,8 +9903,8 @@ static RValue builtin_joystick_axes(VMContext* ctx, RValue* args, MAYBE_UNUSED i
 // Window fullscreen
 static RValue builtin_window_get_fullscreen(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
-    if (runner != nullptr && runner->isFullscreen != nullptr) {
-        return RValue_makeBool(runner->isFullscreen());
+    if (runner != nullptr && runner->isFullscreen) {
+        return RValue_makeBool(runner->isFullscreen);
     }
     return RValue_makeBool(false);
 }
