@@ -1067,6 +1067,13 @@ int loop(CommandLineArgs args, const char *argv0) {
         bool shouldWindowClose = false;
         while (true) {
             if (runner->shouldExit || shouldWindowClose) {
+                // GameMaker fires the "End of Game" event (Other_3) when the game ends,
+                // including when the player closes the window. This triggers the game's own
+                // handlers (obj_inventory calls exit_game, which saves game + settings).
+                // Skip if game_end() already fired it (runner->shouldExit was set there).
+                if (shouldWindowClose && !runner->shouldExit) {
+                    Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_END_OF_GAME);
+                }
                 actuallyShuttingDown = true;
                 break;
             }
@@ -1515,25 +1522,6 @@ int loop(CommandLineArgs args, const char *argv0) {
         runner->pendingLaunchParameters = nullptr;
 
         // Cleanup
-        // Try to save settings before exiting, regardless of how we're exiting
-        {
-            ptrdiff_t saveIdx = shgeti(vm->codeIndexByName, "gml_Script_scr_savesettings");
-            if (saveIdx < 0) saveIdx = shgeti(vm->codeIndexByName, "scr_savesettings");
-            if (saveIdx >= 0) {
-                int32_t saveCodeId = vm->codeIndexByName[saveIdx].value;
-                if (saveCodeId >= 0 && (uint32_t) saveCodeId < dataWin->code.count) {
-                    VM_callCodeIndex(vm, saveCodeId, nullptr, 0);
-                }
-            }
-            // Also flush any open INI
-            if (runner->currentIni != nullptr && runner->currentIniDirty && runner->currentIniPath != nullptr) {
-                char* serialized = Ini_serialize(runner->currentIni, 256);
-                FileSystem* fs = runner->fileSystem;
-                if (fs != nullptr) fs->vtable->writeFileText(fs, runner->currentIniPath, serialized);
-                free(serialized);
-            }
-        }
-
         runner->audioSystem->vtable->destroy(runner->audioSystem);
         runner->audioSystem = nullptr;
         renderer->vtable->destroy(renderer);

@@ -10592,24 +10592,29 @@ static RValue builtin_game_restart(VMContext* ctx, MAYBE_UNUSED RValue* args, MA
 static RValue builtin_game_end(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
 
+    // Fire the "End of Game" event (Other event 3) before exiting
+    Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_END_OF_GAME);
+
+    // [glitchedcode]  the following is commented out because we expect the game to handle 
+    // this through preexisting event handlers
     // Try to call scr_savesettings before exiting.
     // The game's end_game() calls game_end() directly, bypassing exit_game which normally saves.
-    ptrdiff_t idx = shgeti(ctx->codeIndexByName, "gml_Script_scr_savesettings");
-    if (idx < 0) idx = shgeti(ctx->codeIndexByName, "scr_savesettings");
-    if (idx >= 0) {
-        int32_t saveCodeId = ctx->codeIndexByName[idx].value;
-        if (saveCodeId >= 0 && (uint32_t) saveCodeId < runner->dataWin->code.count) {
-            VM_callCodeIndex(ctx, saveCodeId, nullptr, 0);
-        }
-    }
-
-    // Also save any open INI file
-    if (runner->currentIni != nullptr && runner->currentIniDirty && runner->currentIniPath != nullptr) {
-        char* serialized = Ini_serialize(runner->currentIni, INI_SERIALIZE_DEFAULT_INITIAL_CAPACITY);
-        FileSystem* fs = runner->fileSystem;
-        fs->vtable->writeFileText(fs, runner->currentIniPath, serialized);
-        free(serialized);
-    }
+    // ptrdiff_t idx = shgeti(ctx->codeIndexByName, "gml_Script_scr_savesettings");
+    // if (idx < 0) idx = shgeti(ctx->codeIndexByName, "scr_savesettings");
+    // if (idx >= 0) {
+    //     int32_t saveCodeId = ctx->codeIndexByName[idx].value;
+    //     if (saveCodeId >= 0 && (uint32_t) saveCodeId < runner->dataWin->code.count) {
+    //         VM_callCodeIndex(ctx, saveCodeId, nullptr, 0);
+    //     }
+    // }
+    //
+    // // Also save any open INI file
+    // if (runner->currentIni != nullptr && runner->currentIniDirty && runner->currentIniPath != nullptr) {
+    //     char* serialized = Ini_serialize(runner->currentIni, INI_SERIALIZE_DEFAULT_INITIAL_CAPACITY);
+    //     FileSystem* fs = runner->fileSystem;
+    //     fs->vtable->writeFileText(fs, runner->currentIniPath, serialized);
+    //     free(serialized);
+    // }
 
     runner->shouldExit = true;
     return RValue_makeUndefined();
