@@ -5940,6 +5940,35 @@ static DsGrid* dsGridGet(Runner* runner, int32_t id) {
     return &runner->dsGridPool[id];
 }
 
+// GameMaker floors non-integer DS grid cell indices (see the DS Grids overview), while a
+// plain int cast truncates toward zero and would wrongly map e.g. -0.5 onto cell 0.
+static int32_t dsGridFloorInt(RValue val) {
+    GMLReal real = RValue_toReal(val);
+    return (int32_t) GMLReal_floor(real);
+}
+
+// A DS grid created with ds_grid_create has all elements set to 0 (and ds_grid_resize gives
+// newly added cells "a base value of 0"), so cells are initialised to real 0 rather than
+// left as undefined by a bare calloc.
+static RValue* dsGridAllocItems(size_t count) {
+    if (count == 0) return nullptr;
+    RValue* items = (RValue *)safeCalloc(count, sizeof(RValue));
+    repeat(count, i) {
+        items[i] = RValue_makeReal(0);
+    }
+    return items;
+}
+
+// Frees every cell value plus the backing array, leaving the slot's items pointer null.
+static void dsGridFreeItems(DsGrid* grid) {
+    size_t count = (size_t) grid->width * (size_t) grid->height;
+    repeat(count, i) {
+        RValue_free(&grid->items[i]);
+    }
+    free(grid->items);
+    grid->items = nullptr;
+}
+
 static RValue builtin_ds_grid_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     REQUIRE_ARGC_AT_MOST("ds_grid_create", 2, RValue_makeUndefined());
 
@@ -5959,7 +5988,7 @@ static RValue builtin_ds_grid_create(VMContext* ctx, MAYBE_UNUSED RValue* args, 
             runner->dsGridPool[i].freed = false;
             runner->dsGridPool[i].width = width;
             runner->dsGridPool[i].height = height;
-            runner->dsGridPool[i].items = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
+            runner->dsGridPool[i].items = dsGridAllocItems(count);
             return RValue_makeReal(i);
         }
     }
@@ -5967,7 +5996,7 @@ static RValue builtin_ds_grid_create(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     DsGrid newGrid = {0};
     newGrid.width = width;
     newGrid.height = height;
-    newGrid.items = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
+    newGrid.items = dsGridAllocItems(count);
     int32_t id = poolSize;
     arrput(runner->dsGridPool, newGrid);
     return RValue_makeReal(id);
@@ -5978,12 +6007,7 @@ static RValue builtin_ds_grid_destroy(VMContext* ctx, MAYBE_UNUSED RValue* args,
 
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    size_t count = (size_t) grid->width * (size_t) grid->height;
-    repeat(count, i) {
-        RValue_free(&grid->items[i]);
-    }
-    free(grid->items);
-    grid->items = nullptr;
+    dsGridFreeItems(grid);
     grid->width = 0;
     grid->height = 0;
     grid->freed = true;
@@ -6038,8 +6062,8 @@ static RValue builtin_ds_grid_set(VMContext* ctx, MAYBE_UNUSED RValue* args, MAY
 
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x = RValue_toInt32(args[1]);
-    int32_t y = RValue_toInt32(args[2]);
+    int32_t x = dsGridFloorInt(args[1]);
+    int32_t y = dsGridFloorInt(args[2]);
 
     if (0 > x || 0 > y || x >= grid->width || y >= grid->height)
         return RValue_makeUndefined();
@@ -6056,8 +6080,8 @@ static RValue builtin_ds_grid_get(VMContext* ctx, MAYBE_UNUSED RValue* args, MAY
 
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x = RValue_toInt32(args[1]);
-    int32_t y = RValue_toInt32(args[2]);
+    int32_t x = dsGridFloorInt(args[1]);
+    int32_t y = dsGridFloorInt(args[2]);
 
     if (0 > x || 0 > y || x >= grid->width || y >= grid->height)
         return RValue_makeUndefined();
@@ -6070,8 +6094,8 @@ static RValue builtin_ds_grid_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAY
 
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x = RValue_toInt32(args[1]);
-    int32_t y = RValue_toInt32(args[2]);
+    int32_t x = dsGridFloorInt(args[1]);
+    int32_t y = dsGridFloorInt(args[2]);
 
     if (0 > x || 0 > y || x >= grid->width || y >= grid->height)
         return RValue_makeUndefined();
@@ -6108,7 +6132,7 @@ static RValue builtin_ds_grid_resize(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     if (0 > height) height = 0;
 
     size_t count = (size_t) width * (size_t) height;
-    RValue* newGrid = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
+    RValue* newGrid = dsGridAllocItems(count);
 
     int32_t copyWidth = width > grid->width ? grid->width : width;
     int32_t copyHeight = height > grid->height ? grid->height : height;
@@ -6276,15 +6300,18 @@ static RValue dsGridReadNative(VMContext* ctx, DsGrid* grid, const char* hex) {
     if (s.error || 0 > width || 0 > height) { free(bytes); return RValue_makeBool(false); }
 
     size_t count = (size_t) width * (size_t) height;
-    RValue* items = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
+    RValue* items = dsGridAllocItems(count);
 
-    size_t i = 0;
-    for (i = 0; count > i && !s.error; i++) {
-        items[i] = dsStreamReadValue(ctx->dataWin, &s, version);
+    // Mirror of the native writer: values arrive column-by-column (x outer loop,
+    // y inner loop) and land in row-major storage [x + y * width].
+    for (int32_t x = 0; width > x && !s.error; x++) {
+        for (int32_t y = 0; height > y && !s.error; y++) {
+            items[x + (size_t) y * (size_t) width] = dsStreamReadValue(ctx->dataWin, &s, version);
+        }
     }
 
     if (s.error) {
-        for (size_t j = 0; count > j && j <= i; j++) {
+        repeat(count, j) {
             RValue_free(&items[j]);
         }
         free(items);
@@ -6292,7 +6319,7 @@ static RValue dsGridReadNative(VMContext* ctx, DsGrid* grid, const char* hex) {
         return RValue_makeBool(false);
     }
 
-    free(grid->items);
+    dsGridFreeItems(grid);
     grid->items = items;
     grid->width = width;
     grid->height = height;
@@ -6304,6 +6331,7 @@ static RValue dsGridReadJson(VMContext* ctx, DsGrid* grid, const char* json) {
     JsonValue* parsed = JsonReader_parse(json);
     if (parsed == nullptr) return RValue_makeBool(false);
 
+    bool loaded = false;
     if (parsed->type == JSON_OBJECT) {
         JsonValue* wJson = JsonReader_getJsonValueByKey(parsed, "width");
         JsonValue* hJson = JsonReader_getJsonValueByKey(parsed, "height");
@@ -6314,7 +6342,7 @@ static RValue dsGridReadJson(VMContext* ctx, DsGrid* grid, const char* json) {
             int32_t height = (int32_t) hJson->numberValue;
             if (0 <= width && 0 <= height) {
                 size_t count = (size_t) width * (size_t) height;
-                RValue* items = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
+                RValue* items = dsGridAllocItems(count);
                 int bodyLen = JsonReader_arrayLength(bodyJson);
                 repeat(bodyLen, i) {
                     if (count <= (size_t) i) break;
@@ -6322,16 +6350,17 @@ static RValue dsGridReadJson(VMContext* ctx, DsGrid* grid, const char* json) {
                     items[i] = RValue_makeIndependent(v);
                     RValue_free(&v);
                 }
-                free(grid->items);
+                dsGridFreeItems(grid);
                 grid->items = items;
                 grid->width = width;
                 grid->height = height;
+                loaded = true;
             }
         }
     }
 
     JsonReader_free(parsed);
-    return RValue_makeBool(true);
+    return RValue_makeBool(loaded);
 }
 
 static RValue builtin_ds_map_read(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -6347,15 +6376,18 @@ static RValue builtin_ds_map_read(VMContext* ctx, RValue* args, int32_t argCount
 }
 
 static RValue builtin_ds_grid_read(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("ds_grid_read", 2, RValue_makeBool(false));
+    // The GML reference documents ds_grid_read as returning N/A, so every path yields
+    // undefined (the legacy=true format hint is implicit: the format is auto-detected).
+    REQUIRE_ARGC_AT_LEAST("ds_grid_read", 2, RValue_makeUndefined());
     Runner* runner = ctx->runner;
     DsGrid* grid = dsGridGet(runner, RValue_toInt32(args[0]));
-    if (grid == nullptr) return RValue_makeBool(false);
+    if (grid == nullptr) return RValue_makeUndefined();
     if (args[1].type != RVALUE_STRING || args[1].string == nullptr || args[1].string[0] == '\0') {
-        return RValue_makeBool(false);
+        return RValue_makeUndefined();
     }
-    if (args[1].string[0] == '{') return dsGridReadJson(ctx, grid, args[1].string);
-    return dsGridReadNative(ctx, grid, args[1].string);
+    if (args[1].string[0] == '{') dsGridReadJson(ctx, grid, args[1].string);
+    else dsGridReadNative(ctx, grid, args[1].string);
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_ds_map_write(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -6386,9 +6418,12 @@ static RValue builtin_ds_grid_write(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     dsStreamAppendU32(&buf, 603);
     dsStreamAppendU32(&buf, (uint32_t) grid->width);
     dsStreamAppendU32(&buf, (uint32_t) grid->height);
-    int32_t count = grid->width * grid->height;
-    repeat(count, i) {
-        dsStreamWriteValue(&buf, grid->items[i]);
+    // The native runner streams cells column-by-column (x outer loop, y inner loop)
+    // into row-major storage [x + y * width] - see GameMaker-HTML5 ds_grid.js.
+    for (int32_t x = 0; grid->width > x; x++) {
+        for (int32_t y = 0; grid->height > y; y++) {
+            dsStreamWriteValue(&buf, grid->items[x + (size_t) y * (size_t) grid->width]);
+        }
     }
     return dsStreamFinishToHexString(buf);
 }
@@ -6397,10 +6432,10 @@ static RValue builtin_ds_grid_get_max(VMContext* ctx, MAYBE_UNUSED RValue* args,
     REQUIRE_ARGC_AT_MOST("ds_grid_get_max", 5, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x1 = RValue_toInt32(args[1]);
-    int32_t y1 = RValue_toInt32(args[2]);
-    int32_t x2 = RValue_toInt32(args[3]);
-    int32_t y2 = RValue_toInt32(args[4]);
+    int32_t x1 = dsGridFloorInt(args[1]);
+    int32_t y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]);
+    int32_t y2 = dsGridFloorInt(args[4]);
     if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
     x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
@@ -6420,10 +6455,10 @@ static RValue builtin_ds_grid_get_min(VMContext* ctx, MAYBE_UNUSED RValue* args,
     REQUIRE_ARGC_AT_MOST("ds_grid_get_min", 5, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x1 = RValue_toInt32(args[1]);
-    int32_t y1 = RValue_toInt32(args[2]);
-    int32_t x2 = RValue_toInt32(args[3]);
-    int32_t y2 = RValue_toInt32(args[4]);
+    int32_t x1 = dsGridFloorInt(args[1]);
+    int32_t y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]);
+    int32_t y2 = dsGridFloorInt(args[4]);
     if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
     x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
@@ -6443,10 +6478,10 @@ static RValue builtin_ds_grid_get_mean(VMContext* ctx, MAYBE_UNUSED RValue* args
     REQUIRE_ARGC_AT_MOST("ds_grid_get_mean", 5, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x1 = RValue_toInt32(args[1]);
-    int32_t y1 = RValue_toInt32(args[2]);
-    int32_t x2 = RValue_toInt32(args[3]);
-    int32_t y2 = RValue_toInt32(args[4]);
+    int32_t x1 = dsGridFloorInt(args[1]);
+    int32_t y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]);
+    int32_t y2 = dsGridFloorInt(args[4]);
     if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
     x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
@@ -6467,10 +6502,10 @@ static RValue builtin_ds_grid_get_sum(VMContext* ctx, MAYBE_UNUSED RValue* args,
     REQUIRE_ARGC_AT_MOST("ds_grid_get_sum", 5, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x1 = RValue_toInt32(args[1]);
-    int32_t y1 = RValue_toInt32(args[2]);
-    int32_t x2 = RValue_toInt32(args[3]);
-    int32_t y2 = RValue_toInt32(args[4]);
+    int32_t x1 = dsGridFloorInt(args[1]);
+    int32_t y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]);
+    int32_t y2 = dsGridFloorInt(args[4]);
     if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
     x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
@@ -6489,10 +6524,10 @@ static RValue builtin_ds_grid_set_region(VMContext* ctx, MAYBE_UNUSED RValue* ar
     REQUIRE_ARGC_AT_MOST("ds_grid_set_region", 6, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x1 = RValue_toInt32(args[1]);
-    int32_t y1 = RValue_toInt32(args[2]);
-    int32_t x2 = RValue_toInt32(args[3]);
-    int32_t y2 = RValue_toInt32(args[4]);
+    int32_t x1 = dsGridFloorInt(args[1]);
+    int32_t y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]);
+    int32_t y2 = dsGridFloorInt(args[4]);
     if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
     x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
@@ -6526,15 +6561,17 @@ static RValue builtin_ds_grid_copy(VMContext* ctx, MAYBE_UNUSED RValue* args, MA
     DsGrid* dst = dsGridGet(runner, RValue_toInt32(args[0]));
     DsGrid* src = dsGridGet(runner, RValue_toInt32(args[1]));
     if (dst == nullptr || src == nullptr) return RValue_makeUndefined();
+    if (dst == src) return RValue_makeUndefined();
+    // Grid backing arrays are plain malloc/free blocks (see dsGridAllocItems), so free the
+    // cells and the array directly instead of via the stb_ds array helpers.
     int32_t dstCount = dst->width * dst->height;
-    for (int32_t i = 0; i < dstCount; i++) RValue_free(&dst->items[i]);
-    arrfree(dst->items);
+    repeat(dstCount, i) RValue_free(&dst->items[i]);
+    free(dst->items);
     dst->width = src->width;
     dst->height = src->height;
     int32_t srcCount = src->width * src->height;
-    dst->items = nullptr;
-    arrsetlen(dst->items, srcCount);
-    for (int32_t i = 0; i < srcCount; i++) dst->items[i] = RValue_makeIndependent(src->items[i]);
+    dst->items = dsGridAllocItems((size_t) srcCount);
+    repeat(srcCount, i) dst->items[i] = RValue_makeIndependent(src->items[i]);
     return RValue_makeUndefined();
 }
 
@@ -6544,7 +6581,7 @@ static RValue builtin_ds_grid_shuffle(VMContext* ctx, MAYBE_UNUSED RValue* args,
     if (grid == nullptr) return RValue_makeUndefined();
     int32_t count = grid->width * grid->height;
     for (int32_t i = count - 1; i > 0; i--) {
-        int32_t j = rand() % (i + 1);
+        uint32_t j = Random_nextUInt32(&ctx->runner->random) % (i + 1);
         RValue tmp = grid->items[i];
         grid->items[i] = grid->items[j];
         grid->items[j] = tmp;
@@ -6556,7 +6593,7 @@ static RValue builtin_ds_grid_sort(VMContext* ctx, MAYBE_UNUSED RValue* args, MA
     REQUIRE_ARGC_AT_MOST("ds_grid_sort", 3, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t column = RValue_toInt32(args[1]);
+    int32_t column = dsGridFloorInt(args[1]);
     bool ascending = RValue_toBool(args[2]);
     if (column < 0 || column >= grid->width) return RValue_makeUndefined();
     for (int32_t y = 0; y < grid->height - 1; y++) {
@@ -6580,8 +6617,8 @@ static RValue builtin_ds_grid_multiply(VMContext* ctx, MAYBE_UNUSED RValue* args
     REQUIRE_ARGC_AT_MOST("ds_grid_multiply", 4, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x = RValue_toInt32(args[1]);
-    int32_t y = RValue_toInt32(args[2]);
+    int32_t x = dsGridFloorInt(args[1]);
+    int32_t y = dsGridFloorInt(args[2]);
     if (x < 0 || y < 0 || x >= grid->width || y >= grid->height) return RValue_makeUndefined();
     RValue* slot = &grid->items[x + y * grid->width];
     GMLReal prod = RValue_toReal(*slot) * RValue_toReal(args[3]);
@@ -6594,8 +6631,8 @@ static RValue builtin_ds_grid_add_region(VMContext* ctx, MAYBE_UNUSED RValue* ar
     REQUIRE_ARGC_AT_MOST("ds_grid_add_region", 6, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x1 = RValue_toInt32(args[1]), y1 = RValue_toInt32(args[2]);
-    int32_t x2 = RValue_toInt32(args[3]), y2 = RValue_toInt32(args[4]);
+    int32_t x1 = dsGridFloorInt(args[1]), y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]), y2 = dsGridFloorInt(args[4]);
     if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
     x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
@@ -6616,8 +6653,8 @@ static RValue builtin_ds_grid_multiply_region(VMContext* ctx, MAYBE_UNUSED RValu
     REQUIRE_ARGC_AT_MOST("ds_grid_multiply_region", 6, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x1 = RValue_toInt32(args[1]), y1 = RValue_toInt32(args[2]);
-    int32_t x2 = RValue_toInt32(args[3]), y2 = RValue_toInt32(args[4]);
+    int32_t x1 = dsGridFloorInt(args[1]), y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]), y2 = dsGridFloorInt(args[4]);
     if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
     x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
@@ -6640,9 +6677,9 @@ static RValue builtin_ds_grid_set_grid_region(VMContext* ctx, MAYBE_UNUSED RValu
     DsGrid* dst = dsGridGet(runner, RValue_toInt32(args[0]));
     DsGrid* src = dsGridGet(runner, RValue_toInt32(args[1]));
     if (dst == nullptr || src == nullptr) return RValue_makeUndefined();
-    int32_t sx1 = RValue_toInt32(args[2]), sy1 = RValue_toInt32(args[3]);
-    int32_t sx2 = RValue_toInt32(args[4]), sy2 = RValue_toInt32(args[5]);
-    int32_t dx = RValue_toInt32(args[6]), dy = RValue_toInt32(args[7]);
+    int32_t sx1 = dsGridFloorInt(args[2]), sy1 = dsGridFloorInt(args[3]);
+    int32_t sx2 = dsGridFloorInt(args[4]), sy2 = dsGridFloorInt(args[5]);
+    int32_t dx = dsGridFloorInt(args[6]), dy = dsGridFloorInt(args[7]);
     if (sx1 > sx2) { int32_t t = sx1; sx1 = sx2; sx2 = t; }
     if (sy1 > sy2) { int32_t t = sy1; sy1 = sy2; sy2 = t; }
     for (int32_t sy = sy1; sy <= sy2; sy++) {
@@ -6664,9 +6701,9 @@ static RValue builtin_ds_grid_add_grid_region(VMContext* ctx, MAYBE_UNUSED RValu
     DsGrid* dst = dsGridGet(runner, RValue_toInt32(args[0]));
     DsGrid* src = dsGridGet(runner, RValue_toInt32(args[1]));
     if (dst == nullptr || src == nullptr) return RValue_makeUndefined();
-    int32_t sx1 = RValue_toInt32(args[2]), sy1 = RValue_toInt32(args[3]);
-    int32_t sx2 = RValue_toInt32(args[4]), sy2 = RValue_toInt32(args[5]);
-    int32_t dx = RValue_toInt32(args[6]), dy = RValue_toInt32(args[7]);
+    int32_t sx1 = dsGridFloorInt(args[2]), sy1 = dsGridFloorInt(args[3]);
+    int32_t sx2 = dsGridFloorInt(args[4]), sy2 = dsGridFloorInt(args[5]);
+    int32_t dx = dsGridFloorInt(args[6]), dy = dsGridFloorInt(args[7]);
     if (sx1 > sx2) { int32_t t = sx1; sx1 = sx2; sx2 = t; }
     if (sy1 > sy2) { int32_t t = sy1; sy1 = sy2; sy2 = t; }
     for (int32_t sy = sy1; sy <= sy2; sy++) {
@@ -6689,9 +6726,9 @@ static RValue builtin_ds_grid_multiply_grid_region(VMContext* ctx, MAYBE_UNUSED 
     DsGrid* dst = dsGridGet(runner, RValue_toInt32(args[0]));
     DsGrid* src = dsGridGet(runner, RValue_toInt32(args[1]));
     if (dst == nullptr || src == nullptr) return RValue_makeUndefined();
-    int32_t sx1 = RValue_toInt32(args[2]), sy1 = RValue_toInt32(args[3]);
-    int32_t sx2 = RValue_toInt32(args[4]), sy2 = RValue_toInt32(args[5]);
-    int32_t dx = RValue_toInt32(args[6]), dy = RValue_toInt32(args[7]);
+    int32_t sx1 = dsGridFloorInt(args[2]), sy1 = dsGridFloorInt(args[3]);
+    int32_t sx2 = dsGridFloorInt(args[4]), sy2 = dsGridFloorInt(args[5]);
+    int32_t dx = dsGridFloorInt(args[6]), dy = dsGridFloorInt(args[7]);
     if (sx1 > sx2) { int32_t t = sx1; sx1 = sx2; sx2 = t; }
     if (sy1 > sy2) { int32_t t = sy1; sy1 = sy2; sy2 = t; }
     for (int32_t sy = sy1; sy <= sy2; sy++) {
@@ -6708,43 +6745,50 @@ static RValue builtin_ds_grid_multiply_grid_region(VMContext* ctx, MAYBE_UNUSED 
     return RValue_makeUndefined();
 }
 
-static RValue builtin_ds_grid_value_exists(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    REQUIRE_ARGC_AT_MOST("ds_grid_value_exists", 4, RValue_makeBool(false));
-    DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
-    if (grid == nullptr) return RValue_makeBool(false);
-    int32_t column = RValue_toInt32(args[1]);
-    if (column < 0 || column >= grid->width) return RValue_makeBool(false);
-    for (int32_t y = 0; y < grid->height; y++) {
-        if (dsPriorityValuesEqual(grid->items[column + y * grid->width], args[2]))
-            return RValue_makeBool(true);
+// Shared implementation for ds_grid_value_exists / ds_grid_value_x / ds_grid_value_y.
+// All three search a rectangular region for a value, scanning it row-major (top to bottom,
+// left to right) so paired value_x + value_y calls resolve to the same cell.
+static bool dsGridValueFind(Runner* runner, RValue* args, int32_t* outX, int32_t* outY) {
+    DsGrid* grid = dsGridGet(runner, RValue_toInt32(args[0]));
+    if (grid == nullptr) return false;
+    int32_t x1 = dsGridFloorInt(args[1]);
+    int32_t y1 = dsGridFloorInt(args[2]);
+    int32_t x2 = dsGridFloorInt(args[3]);
+    int32_t y2 = dsGridFloorInt(args[4]);
+    if (x1 > x2) { int32_t t = x1; x1 = x2; x2 = t; }
+    if (y1 > y2) { int32_t t = y1; y1 = y2; y2 = t; }
+    x1 = x1 < 0 ? 0 : x1; y1 = y1 < 0 ? 0 : y1;
+    x2 = x2 >= grid->width ? grid->width - 1 : x2;
+    y2 = y2 >= grid->height ? grid->height - 1 : y2;
+    for (int32_t y = y1; y <= y2; y++) {
+        for (int32_t x = x1; x <= x2; x++) {
+            if (dsPriorityValuesEqual(grid->items[x + y * grid->width], args[5])) {
+                if (outX != nullptr) *outX = x;
+                if (outY != nullptr) *outY = y;
+                return true;
+            }
+        }
     }
-    return RValue_makeBool(false);
+    return false;
+}
+
+static RValue builtin_ds_grid_value_exists(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_grid_value_exists", 6, RValue_makeBool(false));
+    return RValue_makeBool(dsGridValueFind(ctx->runner, args, nullptr, nullptr));
 }
 
 static RValue builtin_ds_grid_value_x(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    REQUIRE_ARGC_AT_MOST("ds_grid_value_x", 3, RValue_makeReal(-1));
-    DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
-    if (grid == nullptr) return RValue_makeReal(-1);
-    int32_t column = RValue_toInt32(args[1]);
-    if (column < 0 || column >= grid->width) return RValue_makeReal(-1);
-    for (int32_t y = 0; y < grid->height; y++) {
-        if (dsPriorityValuesEqual(grid->items[column + y * grid->width], args[2]))
-            return RValue_makeReal((GMLReal) column);
-    }
-    return RValue_makeReal(-1);
+    REQUIRE_ARGC_AT_LEAST("ds_grid_value_x", 6, RValue_makeReal(-1));
+    int32_t x = -1;
+    if (!dsGridValueFind(ctx->runner, args, &x, nullptr)) return RValue_makeReal(-1);
+    return RValue_makeReal((GMLReal) x);
 }
 
 static RValue builtin_ds_grid_value_y(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    REQUIRE_ARGC_AT_MOST("ds_grid_value_y", 3, RValue_makeReal(-1));
-    DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
-    if (grid == nullptr) return RValue_makeReal(-1);
-    int32_t column = RValue_toInt32(args[1]);
-    if (column < 0 || column >= grid->width) return RValue_makeReal(-1);
-    for (int32_t y = 0; y < grid->height; y++) {
-        if (dsPriorityValuesEqual(grid->items[column + y * grid->width], args[2]))
-            return RValue_makeReal((GMLReal) y);
-    }
-    return RValue_makeReal(-1);
+    REQUIRE_ARGC_AT_LEAST("ds_grid_value_y", 6, RValue_makeReal(-1));
+    int32_t y = -1;
+    if (!dsGridValueFind(ctx->runner, args, nullptr, &y)) return RValue_makeReal(-1);
+    return RValue_makeReal((GMLReal) y);
 }
 
 // ===[ DS_STACK FUNCTIONS ]===
@@ -7977,8 +8021,8 @@ static RValue builtin_ds_grid_set_post(VMContext* ctx, MAYBE_UNUSED RValue* args
 
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
-    int32_t x = RValue_toInt32(args[1]);
-    int32_t y = RValue_toInt32(args[2]);
+    int32_t x = dsGridFloorInt(args[1]);
+    int32_t y = dsGridFloorInt(args[2]);
 
     if (0 > x || 0 > y || x >= grid->width || y >= grid->height)
         return RValue_makeUndefined();
