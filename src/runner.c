@@ -270,6 +270,7 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
             switch (eventSubtype) {
                 case OTHER_OUTSIDE_ROOM:    return "OutsideRoom";
                 case OTHER_GAME_START:      return "GameStart";
+                case OTHER_END_OF_GAME:      return "EndOfGame";
                 case OTHER_ROOM_START:      return "RoomStart";
                 case OTHER_ROOM_END:        return "RoomEnd";
                 case OTHER_NO_MORE_LIVES:   return "NoMoreLives";
@@ -464,7 +465,8 @@ void Runner_executeEvent(Runner* runner, Instance* instance, int32_t eventType, 
 }
 
 // Events that GameMaker routes through the per-object obj_has_event table instead of Perform_Event_All.
-static bool eventUsesPerObjectDispatch(int32_t eventType) {
+static bool eventUsesPerObjectDispatch(int32_t eventType, int32_t eventSubtype) {
+    if (eventType == EVENT_OTHER && eventSubtype == OTHER_END_OF_GAME) return true;
     return eventType == EVENT_STEP || eventType == EVENT_ALARM || eventType == EVENT_KEYBOARD || eventType == EVENT_KEYPRESS || eventType == EVENT_KEYRELEASE;
 }
 
@@ -476,7 +478,7 @@ void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventS
     Instance** scratch = runner->eventDispatchInstances;
     arrsetlen(scratch, 0);
 
-    if (eventUsesPerObjectDispatch(eventType)) {
+    if (eventUsesPerObjectDispatch(eventType, eventSubtype)) {
         ResolvedEventTable* table = &runner->eventTable;
         uint32_t entryCount;
         SlotResponderEntry* entries = ResolvedEventTable_slotEntries(table, slot, &entryCount);

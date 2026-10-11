@@ -76,6 +76,7 @@
 // ===[ Other Sub-event Constants ]===
 #define OTHER_OUTSIDE_ROOM   0
 #define OTHER_GAME_START     2
+#define OTHER_END_OF_GAME    3
 #define OTHER_ROOM_START     4
 #define OTHER_ROOM_END       5
 #define OTHER_NO_MORE_LIVES  6
