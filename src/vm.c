@@ -1413,7 +1413,7 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
                     int32_t snapBase = Runner_pushInstancesOfObject(runner, instanceType);
                     int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
                     if (snapBase == snapEnd && arrayIndex <= 11) {
-                        logWarn("VM: [%s] ALARM WRITE '%s[%d]=%d' on objIdx=%d but NO instances! varRef=0x%08X varType=0x%X\n", ctx->currentCodeName, varDef->name, arrayIndex, RValue_toInt32(val), instanceType, varRef, varType);
+                        logWarn("VM: [%s] ALARM WRITE '%s[%d]=%d' on objIdx=%d but NO instances! varRef=0x%08X varType=0x%X\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, arrayIndex, RValue_toInt32(val), instanceType, varRef, varType);
                     }
                     for (int32_t i = snapBase; snapEnd > i; i++) {
                         Instance* inst = runner->instanceSnapshots[i];

@@ -5399,19 +5399,6 @@ static RValue builtin_ds_list_add(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeUndefined();
 }
 
-static RValue builtin_ds_list_set(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("ds_list_set", 3, RValue_makeUndefined());
-    Runner* runner = ctx->runner;
-    int32_t id = RValue_toInt32(args[0]);
-    int32_t pos = RValue_toInt32(args[1]);
-    DsList* list = dsListGet(runner, id);
-    if (list == nullptr) return RValue_makeUndefined();
-    if (pos >= 0 && pos < arrlen(list->items)) {
-        list->items[pos] = RValue_makeIndependent(args[2]);
-    }
-    return RValue_makeUndefined();
-}
-
 static RValue builtin_ds_list_insert(VMContext* ctx, RValue* args, int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
@@ -5909,30 +5896,6 @@ static RValue builtin_ds_list_set(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeUndefined();
 }
 
-static int dsListSortCompareAsc(const void* a, const void* b) {
-    GMLReal va = RValue_toReal(*(const RValue*)a);
-    GMLReal vb = RValue_toReal(*(const RValue*)b);
-    if (va < vb) return -1;
-    if (va > vb) return 1;
-    return 0;
-}
-
-static int dsListSortCompareDesc(const void* a, const void* b) {
-    return dsListSortCompareAsc(b, a);
-}
-
-static RValue builtin_ds_list_sort(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("ds_list_sort", 2, RValue_makeUndefined());
-    DsList* list = dsListGet(ctx->runner, RValue_toInt32(args[0]));
-    if (list == nullptr) return RValue_makeUndefined();
-    bool ascending = RValue_toBool(args[1]);
-    int32_t count = arrlen(list->items);
-    if (count > 1) {
-        qsort(list->items, count, sizeof(RValue), ascending ? dsListSortCompareAsc : dsListSortCompareDesc);
-    }
-    return RValue_makeUndefined();
-}
-
 // ===[ DS_GRID FUNCTIONS ]===
 static DsGrid* dsGridGet(Runner* runner, int32_t id) {
     if (0 > id || id >= (int32_t) arrlen(runner->dsGridPool)) return nullptr;
@@ -6159,27 +6122,6 @@ static RValue builtin_ds_grid_resize(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     grid->items = newGrid;
     grid->width = width;
     grid->height = height;
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_ds_grid_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("ds_grid_copy", 2, RValue_makeUndefined());
-    DsGrid* dst = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
-    DsGrid* src = dsGridGet(ctx->runner, RValue_toInt32(args[1]));
-    if (dst == nullptr || src == nullptr || dst == src) return RValue_makeUndefined();
-    for (int32_t i = 0; i < dst->width * dst->height; i++) {
-        RValue_free(&dst->items[i]);
-    }
-    free(dst->items);
-    size_t count = (size_t)src->width * (size_t)src->height;
-    dst->width = src->width;
-    dst->height = src->height;
-    dst->items = count > 0 ? (RValue*)safeCalloc(count, sizeof(RValue)) : nullptr;
-    if (dst->items != nullptr) {
-        for (size_t i = 0; i < count; i++) {
-            dst->items[i] = RValue_makeIndependent(src->items[i]);
-        }
-    }
     return RValue_makeUndefined();
 }
 
@@ -6589,30 +6531,6 @@ static RValue builtin_ds_grid_shuffle(VMContext* ctx, MAYBE_UNUSED RValue* args,
     return RValue_makeUndefined();
 }
 
-static RValue builtin_ds_grid_sort(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    REQUIRE_ARGC_AT_MOST("ds_grid_sort", 3, RValue_makeUndefined());
-    DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
-    if (grid == nullptr) return RValue_makeUndefined();
-    int32_t column = dsGridFloorInt(args[1]);
-    bool ascending = RValue_toBool(args[2]);
-    if (column < 0 || column >= grid->width) return RValue_makeUndefined();
-    for (int32_t y = 0; y < grid->height - 1; y++) {
-        for (int32_t y2 = y + 1; y2 < grid->height; y2++) {
-            GMLReal a = RValue_toReal(grid->items[column + y * grid->width]);
-            GMLReal b = RValue_toReal(grid->items[column + y2 * grid->width]);
-            bool swap = ascending ? (a > b) : (a < b);
-            if (swap) {
-                for (int32_t x = 0; x < grid->width; x++) {
-                    RValue tmp = grid->items[x + y * grid->width];
-                    grid->items[x + y * grid->width] = grid->items[x + y2 * grid->width];
-                    grid->items[x + y2 * grid->width] = tmp;
-                }
-            }
-        }
-    }
-    return RValue_makeUndefined();
-}
-
 static RValue builtin_ds_grid_multiply(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     REQUIRE_ARGC_AT_MOST("ds_grid_multiply", 4, RValue_makeUndefined());
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
@@ -6743,6 +6661,32 @@ static RValue builtin_ds_grid_multiply_grid_region(VMContext* ctx, MAYBE_UNUSED 
         }
     }
     return RValue_makeUndefined();
+}
+
+// Loose value equality used by ds_grid_value_* searches and ds_priority_* (GameMaker
+// compares numerics with a small epsilon and matches strings/refs exactly).
+static bool dsPriorityValuesEqual(RValue a, RValue b) {
+    bool aNumeric = a.type == RVALUE_REAL || a.type == RVALUE_INT32 || a.type == RVALUE_INT64 || a.type == RVALUE_BOOL || a.type == RVALUE_ASSETREF;
+    bool bNumeric = b.type == RVALUE_REAL || b.type == RVALUE_INT32 || b.type == RVALUE_INT64 || b.type == RVALUE_BOOL || b.type == RVALUE_ASSETREF;
+    if (aNumeric && bNumeric) {
+        return GML_MATH_EPSILON > GMLReal_fabs(RValue_toReal(a) - RValue_toReal(b));
+    }
+    switch (a.type) {
+        case RVALUE_STRING:
+            return b.type == RVALUE_STRING && a.string != nullptr && b.string != nullptr && strcmp(a.string, b.string) == 0;
+        case RVALUE_ARRAY:
+            return b.type == RVALUE_ARRAY && a.array == b.array;
+#if IS_WAD17_OR_HIGHER_ENABLED
+        case RVALUE_METHOD:
+            return b.type == RVALUE_METHOD && a.method == b.method;
+#endif
+        case RVALUE_STRUCT:
+            return b.type == RVALUE_STRUCT && a.structInst == b.structInst;
+        case RVALUE_UNDEFINED:
+            return b.type == RVALUE_UNDEFINED;
+        default:
+            return false;
+    }
 }
 
 // Shared implementation for ds_grid_value_exists / ds_grid_value_x / ds_grid_value_y.
@@ -8394,52 +8338,10 @@ STUB_RETURN_FALSE(steam_utils_is_steam_running_on_steam_deck)
 
 // ===[ Date/Time Functions ]===
 
-static RValue builtin_date_current_datetime(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    time_t now = time(NULL);
-    double gmDate = 25569.0 + ((double) now / 86400.0);
-    return RValue_makeReal(gmDate);
-}
-
 static struct tm* gmDateToTm(double gmDate) {
     double unixDays = gmDate - 25569.0;
     time_t t = (time_t)(unixDays * 86400.0);
     return localtime(&t);
-}
-
-static RValue builtin_date_get_year(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_get_year", 1, RValue_makeReal(0));
-    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
-    return RValue_makeReal((GMLReal)(tm->tm_year + 1900));
-}
-
-static RValue builtin_date_get_month(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_get_month", 1, RValue_makeReal(0));
-    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
-    return RValue_makeReal((GMLReal)(tm->tm_mon + 1));
-}
-
-static RValue builtin_date_get_day(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_get_day", 1, RValue_makeReal(0));
-    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
-    return RValue_makeReal((GMLReal)tm->tm_mday);
-}
-
-static RValue builtin_date_get_hour(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_get_hour", 1, RValue_makeReal(0));
-    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
-    return RValue_makeReal((GMLReal)tm->tm_hour);
-}
-
-static RValue builtin_date_get_minute(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_get_minute", 1, RValue_makeReal(0));
-    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
-    return RValue_makeReal((GMLReal)tm->tm_min);
-}
-
-static RValue builtin_date_get_second(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_get_second", 1, RValue_makeReal(0));
-    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
-    return RValue_makeReal((GMLReal)tm->tm_sec);
 }
 
 static RValue builtin_date_minute_span(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -8456,14 +8358,6 @@ static RValue builtin_date_second_span(VMContext* ctx, RValue* args, int32_t arg
     double d2 = RValue_toReal(args[1]);
     double diffDays = d2 - d1;
     return RValue_makeReal(diffDays * 86400.0);
-}
-
-static RValue builtin_date_date_string(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_date_string", 1, RValue_makeOwnedString(safeStrdup("")));
-    struct tm* tm = gmDateToTm(RValue_toReal(args[0]));
-    char buf[32];
-    strftime(buf, sizeof(buf), "%d/%m/%Y", tm);
-    return RValue_makeOwnedString(safeStrdup(buf));
 }
 
 static RValue builtin_date_time_string(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -25586,9 +25480,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_write", builtin_ds_list_write);
     VM_registerBuiltin(ctx, "ds_list_read", builtin_ds_list_read);
     VM_registerBuiltin(ctx, "ds_list_replace", builtin_ds_list_replace);
-    VM_registerBuiltin(ctx, "ds_list_set", builtin_ds_list_set);
     VM_registerBuiltin(ctx, "ds_list_copy", builtin_ds_list_copy);
-    VM_registerBuiltin(ctx, "ds_list_sort", builtin_ds_list_sort);
 
     // ds_grid
     VM_registerBuiltin(ctx, "ds_grid_create", builtin_ds_grid_create);
@@ -25609,9 +25501,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_grid_get_sum", builtin_ds_grid_get_sum);
     VM_registerBuiltin(ctx, "ds_grid_set_region", builtin_ds_grid_set_region);
     VM_registerBuiltin(ctx, "ds_grid_clear", builtin_ds_grid_clear);
-    VM_registerBuiltin(ctx, "ds_grid_copy", builtin_ds_grid_copy);
     VM_registerBuiltin(ctx, "ds_grid_shuffle", builtin_ds_grid_shuffle);
-    VM_registerBuiltin(ctx, "ds_grid_sort", builtin_ds_grid_sort);
     VM_registerBuiltin(ctx, "ds_grid_multiply", builtin_ds_grid_multiply);
     VM_registerBuiltin(ctx, "ds_grid_add_region", builtin_ds_grid_add_region);
     VM_registerBuiltin(ctx, "ds_grid_multiply_region", builtin_ds_grid_multiply_region);
@@ -25685,7 +25575,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_create", builtin_array_create);
     VM_registerBuiltin(ctx, "array_copy", builtin_array_copy);
     VM_registerBuiltin(ctx, "array_sort", builtin_array_sort);
-    VM_registerBuiltin(ctx, "array_equals", builtin_array_equals);
 
     // Steam stubs
     VM_registerBuiltin(ctx, "steam_initialised", builtin_steam_initialised);
@@ -26564,16 +26453,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Misc
     VM_registerBuiltin(ctx, "get_timer", builtin_get_timer);
     VM_registerBuiltin(ctx, "date_create_datetime", builtin_date_create_datetime);
-    VM_registerBuiltin(ctx, "date_current_datetime", builtin_date_current_datetime);
-    VM_registerBuiltin(ctx, "date_get_year", builtin_date_get_year);
-    VM_registerBuiltin(ctx, "date_get_month", builtin_date_get_month);
-    VM_registerBuiltin(ctx, "date_get_day", builtin_date_get_day);
-    VM_registerBuiltin(ctx, "date_get_hour", builtin_date_get_hour);
-    VM_registerBuiltin(ctx, "date_get_minute", builtin_date_get_minute);
-    VM_registerBuiltin(ctx, "date_get_second", builtin_date_get_second);
     VM_registerBuiltin(ctx, "date_set_timezone", builtin_date_set_timezone);
     VM_registerBuiltin(ctx, "date_get_timezone", builtin_date_get_timezone);
-    VM_registerBuiltin(ctx, "date_date_string", builtin_date_date_string);
     VM_registerBuiltin(ctx, "date_datetime_string", builtin_date_datetime_string);
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_if_variable", builtin_action_if_variable);

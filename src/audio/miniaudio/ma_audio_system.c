@@ -941,31 +941,6 @@ static void maStopGroup(AudioSystem* audio, int32_t groupIndex) {
     }
 }
 
-static void maSetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
-    MaAudioSystem* ma = (MaAudioSystem*) audio;
-    DataWin* dw = audio->dw;
-    if (0 > groupIndex || dw->sond.count == 0) return;
-
-    repeat(MAX_SOUND_INSTANCES, i) {
-        SoundInstance* inst = &ma->instances[i];
-        if (!inst->active) continue;
-        if (inst->soundIndex >= 0 && (uint32_t) inst->soundIndex < dw->sond.count
-            && dw->sond.sounds[inst->soundIndex].audioGroup == groupIndex) {
-            if (timeMs == 0) {
-                inst->currentGain = gain;
-                inst->targetGain = gain;
-                inst->fadeTimeRemaining = 0.0f;
-                ma_sound_set_volume(&inst->maSound, gain);
-            } else {
-                inst->startGain = inst->currentGain;
-                inst->targetGain = gain;
-                inst->fadeTotalTime = (float) timeMs / 1000.0f;
-                inst->fadeTimeRemaining = inst->fadeTotalTime;
-            }
-        }
-    }
-}
-
 // ===[ Audio Streams ]===
 
 static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
