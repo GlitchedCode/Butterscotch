@@ -94,10 +94,6 @@ void platformSetWindowPosition(int32_t x, int32_t y) {
     (void)y;
 }
 
-bool platformIsFullscreen(void) {
-    return false;
-}
-
 void platformSwapBuffers(void) {
     static uint32_t frames = 0;
     static time_t t = 0;

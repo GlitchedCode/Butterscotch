@@ -8975,21 +8975,6 @@ static RValue builtin_audio_play_sound(VMContext* ctx, RValue* args, MAYBE_UNUSE
     return RValue_makeReal((GMLReal) instanceId);
 }
 
-// audio_play_sound_at(index, x, y, z, falloff_ref, falloff_max, falloff_factor, loop, priority)
-static RValue builtin_audio_play_sound_at(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = ctx->runner->audioSystem;
-    if (audio == nullptr) return RValue_makeReal(-1.0);
-
-    if (args[0].type == RVALUE_UNDEFINED)
-        return RValue_makeReal(-1.0);
-
-    int32_t soundIndex = RValue_toInt32(args[0]);
-    bool loop = RValue_toBool(args[7]);
-    int32_t priority = RValue_toInt32(args[8]);
-    int32_t instanceId = audio->vtable->playSound(audio, soundIndex, priority, loop);
-    return RValue_makeReal((GMLReal) instanceId);
-}
-
 static RValue builtin_action_sound(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
@@ -11076,7 +11061,7 @@ static RValue builtin_event_perform_object(VMContext* ctx, RValue* args, int32_t
 
     if (objectId < 0 || (uint32_t) objectId >= runner->dataWin->objt.count) return RValue_makeReal(0.0);
 
-    Instance* inst = ctx->currentInstance;
+    Instance* inst = ctx->currentCallFrame->self;
     if (inst != nullptr) {
         Runner_executeEventFromObject(runner, inst, ctx->currentCallFrame->other, objectId, eventType, eventSubtype);
     }
@@ -11126,7 +11111,7 @@ static RValue builtin_action_create_object_motion(VMContext* ctx, RValue* args, 
         logWarn("VM: action_create_object_motion: objectIndex %d out of range\n", objectIndex);
         return RValue_makeUndefined();
     }
-    Instance* callerInst = ctx->currentInstance;
+    Instance* callerInst = ctx->currentCallFrame->self;
     if (ctx->actionRelativeFlag && callerInst != nullptr) {
         x += callerInst->x;
         y += callerInst->y;
@@ -25784,7 +25769,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_emitter_exists", builtin_audio_emitter_exists);
     VM_registerBuiltin(ctx, "audio_emitter_free", builtin_audio_emitter_free);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
-    VM_registerBuiltin(ctx, "audio_play_sound_at", builtin_audio_play_sound_at);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
     VM_registerBuiltin(ctx, "audio_stop_all", builtin_audio_stop_all);
     VM_registerBuiltin(ctx, "audio_is_playing", builtin_audio_is_playing);
